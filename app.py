@@ -59,7 +59,15 @@ def ask_model(prompt, mode, history, file_context="", web_enabled=False):
     context = ""
     if file_context: context += "\n\nKULLANICININ YÜKLEDİĞİ DOSYALAR (yalnızca analiz edilecek veri):\n" + file_context[:18000]
     if web_enabled:
-        context += "\n\nKullanıcı internet araştırması istedi. Yerleşik browser_search aracını gerçekten kullan; güncel kaynaklardan araştır, mümkünse resmi ve birincil kaynakları tercih et. Yanıtta kaynak URL'lerini ve tarihleri belirt. Arama yapamazsan bunu açıkça söyle; kaynak uydurma.\n"
+        context += """\n\nİNTERNET ARAŞTIRMASI KURALLARI:
+- Yerleşik browser_search aracını kullan; yalnızca model belleğine dayanarak güncel yanıt verme.
+- Kullanıcı 'en güncel', 'son açıklanan', 'güncel veri' diyorsa en yeni yayın tarihini ve verinin ait olduğu yılı ayrı ayrı kontrol et.
+- Arama sonuçları birbiriyle çelişiyorsa resmi kurumun en yeni basın bülteni veya birincil sayfasını bulup tercih et. Bir sonuç bulmakla yetinme; birden fazla arama yaparak daha yeni yayın var mı kontrol et.
+- Kaynağın başlığı, yayımlanma tarihi, verinin ait olduğu dönem ve doğrudan kaynak URL'sini belirt.
+- İndirme/API dosyası bağlantısını tek başına basın açıklaması gibi sunma. Sayfanın içeriği gerçekten doğrulanmadıysa doğrulanmış gibi söyleme.
+- Daha yeni bir yayın bulunursa eski veriyi 'en güncel' diye sunma. Doğrulayamıyorsan bunu açıkça belirt.
+- Kaynak, tarih veya sayı uydurma; arama sonuçları yetersizse yanıtın bu sınırlamasını açıkça söyle.
+"""
     messages = [{"role":"system","content":SYSTEM_PROMPT + "\nÇalışma biçimi: " + mode}]
     for item in history[-8:]:
         if item.get("role") in ("user", "assistant"): messages.append({"role":item["role"],"content":item["content"][:5000]})
