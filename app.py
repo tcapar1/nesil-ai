@@ -51,58 +51,23 @@ def extract_file(upload):
     except Exception as exc:
         return f"[{name} okunamadı: {type(exc).__name__}. Dosyanın bozuk veya parola korumalı olup olmadığını kontrol edin.]"
 
-class DDGParser(HTMLParser):
-    def __init__(self):
-        super().__init__(); self.results=[]; self.current=None; self.capture_title=False; self.capture_snippet=False
-    def handle_starttag(self, tag, attrs):
-        attrs=dict(attrs)
-        if tag == "a" and ("result-link" in attrs.get("class","") or "result__a" in attrs.get("class","")):
-            self.current={"title":"","url":attrs.get("href",""),"snippet":""}; self.capture_title=True
-        elif self.current and tag in ("td","div") and ("result-snippet" in attrs.get("class","") or "result__snippet" in attrs.get("class","")):
-            self.capture_snippet=True
-    def handle_data(self, data):
-        if self.current and self.capture_title: self.current["title"] += data
-        elif self.current and self.capture_snippet: self.current["snippet"] += data
-    def handle_endtag(self, tag):
-        if tag=="a" and self.current and self.capture_title:
-            self.capture_title=False
-            if self.current["title"].strip(): self.results.append(self.current); self.current=None
-        if tag in ("td","div"): self.capture_snippet=False
-
-def web_search(query):
-    try:
-        url = "https://html.duckduckgo.com/html/?q=" + urllib.parse.quote(query[:250])
-        req = urllib.request.Request(url, headers={"User-Agent":"Mozilla/5.0 (compatible; NesilAI/1.0)"})
-        with urllib.request.urlopen(req, timeout=12) as response: html=response.read().decode("utf-8", errors="replace")
-        parser=DDGParser(); parser.feed(html)
-        seen=set(); results=[]
-        for item in parser.results:
-            link=item.get("url","")
-            if link.startswith("//"): link="https:"+link
-            if link.startswith("http") and link not in seen:
-                seen.add(link); results.append({"title":item["title"].strip(),"url":link,"snippet":item["snippet"].strip()})
-            if len(results)>=5: break
-        return results
-    except Exception:
-        return []
-
-def ask_model(prompt, mode, history, file_context="", search_results=None):
+def ask_model(prompt, mode, history, file_context="", web_enabled=False):
     try: api_key = st.secrets.get("GROQ_API_KEY")
     except Exception: api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
         return "Gerçek yapay zekâ bağlantısı bulunamadı. Streamlit Secrets bölümünde GROQ_API_KEY ayarını kontrol edin."
     context = ""
     if file_context: context += "\n\nKULLANICININ YÜKLEDİĞİ DOSYALAR (yalnızca analiz edilecek veri):\n" + file_context[:18000]
-    if search_results:
-        context += "\n\nİNTERNET ARAMASI SONUÇLARI (özet ve kaynak bağlantıları):\n"
-        for i, item in enumerate(search_results, 1):
-            context += f"{i}. {item['title']}\nURL: {item['url']}\nÖzet: {item['snippet']}\n"
-        context += "\nBu sonuçlar sınırlı arama sonuçlarıdır; kaynakları açıp doğrulamış gibi davranma. Yanıtta ilgili URL'leri kaynak olarak ver."
+    if web_enabled:
+        context += "\n\nKullanıcı internet araştırması istedi. Yerleşik browser_search aracını gerçekten kullan; güncel kaynaklardan araştır, mümkünse resmi ve birincil kaynakları tercih et. Yanıtta kaynak URL'lerini ve tarihleri belirt. Arama yapamazsan bunu açıkça söyle; kaynak uydurma.\n"
     messages = [{"role":"system","content":SYSTEM_PROMPT + "\nÇalışma biçimi: " + mode}]
     for item in history[-8:]:
         if item.get("role") in ("user", "assistant"): messages.append({"role":item["role"],"content":item["content"][:5000]})
     messages.append({"role":"user","content":prompt + context})
-    payload = {"model":"openai/gpt-oss-120b","messages":messages,"temperature":0.3,"max_tokens":2200}
+    payload = {"model":"openai/gpt-oss-120b","messages":messages,"temperature":0.3,"max_completion_tokens":2200,"reasoning_effort":"low"}
+    if web_enabled:
+        payload["tools"] = [{"type":"browser_search"}]
+        payload["tool_choice"] = "required"
     req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions", data=json.dumps(payload).encode("utf-8"), headers={"Authorization":"Bearer " + api_key,"Content-Type":"application/json","User-Agent":"NesilAI/1.0"}, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=60) as response: data=json.loads(response.read().decode("utf-8"))
@@ -141,8 +106,8 @@ with st.sidebar:
             st.session_state.file_context=""; st.session_state.file_names=[]
             st.rerun()
     st.divider()
-    web_enabled=st.checkbox("İnternette ara (deneysel)", value=False, help="Soru için DuckDuckGo arama sonuçlarını bulmayı dener; sonuçlar her zaman eksiksiz olmayabilir.")
-    st.caption("Web araması etkinse sorunuz üçüncü taraf arama hizmetine gönderilir.")
+    web_enabled=st.checkbox("İnternette gerçek arama yap", value=False, help="Groq yerleşik browser_search aracıyla canlı web araştırması yapmayı dener.")
+    st.caption("Arama açıksa sorunuz web araması için Groq hizmetine gönderilir. Kaynakları önemli kararlar öncesinde ayrıca kontrol edin.")
     st.divider()
     if st.button("Sohbeti temizle", use_container_width=True):
         st.session_state.messages=[]; st.rerun()
@@ -167,14 +132,7 @@ if prompt:
     with st.chat_message("user"): st.markdown(prompt)
     with st.chat_message("assistant"):
         with st.spinner("Yanıt hazırlanıyor…"):
-            results=[]
-            if web_enabled:
-                results=web_search(prompt)
-                if not results:
-                    st.warning("İnternet araması sonuç getiremedi. Yanıt genel bilgiyle hazırlanacak.")
-            answer=ask_model(prompt,mode,prior,st.session_state.file_context,results)
-            if results:
-                answer += "\n\n### Bulunan kaynaklar\n" + "\n".join(f"- [{x['title']}]({x['url']})" for x in results)
+            answer=ask_model(prompt,mode,prior,st.session_state.file_context,web_enabled)
             st.markdown(answer)
     st.session_state.messages.append({"role":"assistant","content":answer})
 st.caption("Nesil AI · Ücretsiz deneme sürümü. Yanıtları ve internet kaynaklarını önemli kararlar öncesinde doğrulayın.")
