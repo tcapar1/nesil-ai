@@ -119,10 +119,12 @@ def ask_model(prompt, mode, history, file_context="", web_enabled=False):
 - Türkiye nüfusu için 2024 verisini en güncel yıllık ADNKS sonucu olarak verme. TÜİK 2025 ADNKS sonuçlarını 9 Şubat 2026 tarihinde yayımladı: 86.092.168 kişi. Resmî kaynak: https://veriportali.tuik.gov.tr/Bulten/Index?p=53899 . Yıllık ADNKS verisi ile 2026 çeyreklik nüfus göstergesini birbirinden ayır. Kaynak doğrulanamıyorsa bunu açıkça belirt; Wikipedia tek kaynak olmasın.
 """
     messages = [{"role":"system","content":SYSTEM_PROMPT + "\nÇalışma biçimi: " + mode}]
-    for item in history[-8:]:
-        if item.get("role") in ("user", "assistant"): messages.append({"role":item["role"],"content":item["content"][:5000]})
+    # Keep the prompt compact to reduce token consumption and improve latency.
+    for item in history[-4:]:
+        if item.get("role") in ("user", "assistant"):
+            messages.append({"role":item["role"],"content":item["content"][:1800]})
     messages.append({"role":"user","content":prompt + context})
-    payload = {"model":"openai/gpt-oss-120b","messages":messages,"temperature":0.3,"max_completion_tokens":2200,"reasoning_effort":"low"}
+    payload = {"model":"openai/gpt-oss-120b","messages":messages,"temperature":0.3,"max_completion_tokens":1200,"reasoning_effort":"low"}
     if web_enabled:
         payload["tools"] = [{"type":"browser_search"}]
         payload["tool_choice"] = "required"
@@ -193,8 +195,14 @@ if prompt:
     st.session_state.messages.append({"role":"user","content":prompt})
     with st.chat_message("user"): st.markdown(prompt)
     with st.chat_message("assistant"):
-        with st.spinner("Yanıt hazırlanıyor…"):
-            answer=ask_model(prompt,mode,prior,st.session_state.file_context,web_enabled)
-            st.markdown(answer)
+        # Reuse the immediately previous answer for an identical repeat to avoid a needless API call.
+        last_user = next((m.get("content") for m in reversed(prior) if m.get("role") == "user"), None)
+        last_assistant = next((m.get("content") for m in reversed(prior) if m.get("role") == "assistant"), None)
+        if last_user == prompt and last_assistant:
+            answer = last_assistant
+        else:
+            with st.spinner("Yanıt hazırlanıyor…"):
+                answer=ask_model(prompt,mode,prior,st.session_state.file_context,web_enabled)
+        st.markdown(answer)
     st.session_state.messages.append({"role":"assistant","content":answer})
 st.caption("Nesil AI · Ücretsiz deneme sürümü. Yanıtları ve internet kaynaklarını önemli kararlar öncesinde doğrulayın.")
