@@ -82,17 +82,22 @@ def fetch_tuik_population_source(prompt):
         return "\nTÜİK resmî sayfası doğrudan alınamadı (" + type(exc).__name__ + "). Güncel nüfus doğrulanamadı; tahmin etme."
 
 def offline_public_data_answer(prompt, web_enabled=False):
-    """Return only narrowly scoped, dated public data when the provider is rate-limited."""
+    """Return narrowly scoped, dated public data when the provider is rate-limited."""
     q = prompt.casefold()
     population_question = any(x in q for x in ("nüfus", "nufus", "population")) and any(x in q for x in ("türkiye", "turkiye", "turkey"))
     if not population_question:
         return ""
     if not web_enabled:
         return "İnternet araması kapalı. Güncel nüfus verisini doğrulamak için aramayı açın. Resmî TÜİK kaynakları: https://www.tuik.gov.tr/ ve https://nip.tuik.gov.tr/"
-    return ("Türkiye'nin en güncel yıllık ADNKS sonucu olarak TÜİK'in 2025 yılı verisi kullanılmalıdır: 86.092.168 kişi. "
-            "Veri yılı: 2025; yayımlanma tarihi: 9 Şubat 2026. "
-            "Resmî TÜİK bülteni: https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899 "
-            "Bu yedek yanıt, canlı arama sonucu değildir. 2026 için görünen farklı göstergeler yıllık ADNKS verisiyle karıştırılmamalıdır.")
+    return (
+        "## TÜİK'in en güncel yıllık ADNKS nüfus verisi\\n\\n"
+        "| Gösterge | Veri |\\n|---|---|\\n"
+        "| Türkiye'de ikamet eden nüfus | **86.092.168 kişi** |\\n"
+        "| Veri yılı / referans tarihi | 2025 / 31 Aralık 2025 |\\n"
+        "| Yayın tarihi | 9 Şubat 2026 |\\n\\n"
+        "**Resmî kaynak:** [TÜİK — 2025 ADNKS sonuçları](https://veriportali.tuik.gov.tr/tr/press/53899)\\n\\n"
+        "Bu, Groq kullanım sınırı nedeniyle sunulan yedek bilgidir; canlı web araması yapılmış değildir. 2026'ya ait farklı göstergeler yıllık ADNKS verisiyle karıştırılmamalıdır."
+    )
 
 def ask_model(prompt, mode, history, file_context="", web_enabled=False):
     try: api_key = st.secrets.get("GROQ_API_KEY")
