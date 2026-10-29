@@ -24,7 +24,7 @@ def ask_model(prompt, mode, history):
         if item.get("role") in ("user", "assistant"): messages.append({"role":item["role"],"content":item["content"]})
     messages.append({"role":"user","content":prompt})
     payload = {"model":"llama-3.3-70b-versatile","messages":messages,"temperature":0.3,"max_tokens":1800}
-    req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions", data=json.dumps(payload).encode("utf-8"), headers={"Authorization":"Bearer " + api_key,"Content-Type":"application/json"}, method="POST")
+    req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions", data=json.dumps(payload).encode("utf-8"), headers={"Authorization":"Bearer " + api_key,"Content-Type":"application/json","User-Agent":"NesilAI/1.0"}, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=60) as response: data = json.loads(response.read().decode("utf-8"))
         return data["choices"][0]["message"]["content"]
