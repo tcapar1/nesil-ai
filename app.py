@@ -98,6 +98,7 @@ def ask_model(prompt, mode, history, file_context="", web_enabled=False):
 - İndirme/API dosyası bağlantısını tek başına basın açıklaması gibi sunma. Sayfanın içeriği gerçekten doğrulanmadıysa doğrulanmış gibi söyleme.
 - Daha yeni bir yayın bulunursa eski veriyi 'en güncel' diye sunma. Doğrulayamıyorsan bunu açıkça belirt.
 - Kaynak, tarih veya sayı uydurma; arama sonuçları yetersizse yanıtın bu sınırlamasını açıkça söyle.
+- Türkiye nüfusu için 2024 verisini en güncel yıllık ADNKS sonucu olarak verme. TÜİK 2025 ADNKS sonuçlarını 9 Şubat 2026 tarihinde yayımladı: 86.092.168 kişi. Resmî kaynak: https://veriportali.tuik.gov.tr/Bulten/Index?p=53899 . Yıllık ADNKS verisi ile 2026 çeyreklik nüfus göstergesini birbirinden ayır. Kaynak doğrulanamıyorsa bunu açıkça belirt; Wikipedia tek kaynak olmasın.
 """
     messages = [{"role":"system","content":SYSTEM_PROMPT + "\nÇalışma biçimi: " + mode}]
     for item in history[-8:]:
