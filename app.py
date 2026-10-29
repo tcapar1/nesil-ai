@@ -81,6 +81,19 @@ def fetch_tuik_population_source(prompt):
     except Exception as exc:
         return "\nTÜİK resmî sayfası doğrudan alınamadı (" + type(exc).__name__ + "). Güncel nüfus doğrulanamadı; tahmin etme."
 
+def offline_public_data_answer(prompt, web_enabled=False):
+    """Return only narrowly scoped, dated public data when the provider is rate-limited."""
+    q = prompt.casefold()
+    population_question = any(x in q for x in ("nüfus", "nufus", "population")) and any(x in q for x in ("türkiye", "turkiye", "turkey"))
+    if not population_question:
+        return ""
+    if not web_enabled:
+        return "İnternet araması kapalı. Güncel nüfus verisini doğrulamak için aramayı açın. Resmî TÜİK kaynakları: https://www.tuik.gov.tr/ ve https://nip.tuik.gov.tr/"
+    return ("Türkiye'nin en güncel yıllık ADNKS sonucu olarak TÜİK'in 2025 yılı verisi kullanılmalıdır: 86.092.168 kişi. "
+            "Veri yılı: 2025; yayımlanma tarihi: 9 Şubat 2026. "
+            "Resmî TÜİK bülteni: https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899 "
+            "Bu yedek yanıt, canlı arama sonucu değildir. 2026 için görünen farklı göstergeler yıllık ADNKS verisiyle karıştırılmamalıdır.")
+
 def ask_model(prompt, mode, history, file_context="", web_enabled=False):
     try: api_key = st.secrets.get("GROQ_API_KEY")
     except Exception: api_key = os.environ.get("GROQ_API_KEY")
@@ -115,7 +128,11 @@ def ask_model(prompt, mode, history, file_context="", web_enabled=False):
     except urllib.error.HTTPError as exc:
         details=exc.read().decode("utf-8", errors="replace")
         if exc.code in (401,403): return f"Groq erişim hatası (HTTP {exc.code}): {details[:350]}\nSecrets içindeki anahtarı ve Groq model erişimini kontrol edin."
-        if exc.code==429: return "Groq kullanım sınırına ulaşıldı. Bir süre sonra tekrar deneyin."
+        if exc.code==429:
+            fallback = offline_public_data_answer(prompt, web_enabled)
+            if fallback:
+                return fallback + "\n\nNot: Groq kullanım sınırı dolduğu için bu yanıt yapay zekâ tarafından üretilmedi; yalnızca uygulamadaki doğrulanmış sabit kaynak bilgisinden oluşturuldu."
+            return "Groq kullanım sınırına ulaşıldı. Bu soru için doğrulanmış yerel bir yedek yanıt bulunamadı. Lütfen daha sonra tekrar deneyin."
         return f"Model sağlayıcısı hata döndürdü (HTTP {exc.code}): {details[:350]}"
     except Exception as exc:
         return f"Model bağlantısı başarısız oldu ({type(exc).__name__}). Biraz sonra tekrar deneyin."
