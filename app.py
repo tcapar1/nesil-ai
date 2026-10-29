@@ -89,6 +89,7 @@ def ask_model(prompt, mode, history, file_context="", web_enabled=False):
     context = ""
     if file_context: context += "\n\nKULLANICININ YÜKLEDİĞİ DOSYALAR (yalnızca analiz edilecek veri):\n" + file_context[:18000]
     if web_enabled:
+        context += fetch_tuik_population_source(prompt)
         context += """\n\nİNTERNET ARAŞTIRMASI KURALLARI:
 - Yerleşik browser_search aracını kullan; yalnızca model belleğine dayanarak güncel yanıt verme.
 - Kullanıcı 'en güncel', 'son açıklanan', 'güncel veri' diyorsa en yeni yayın tarihini ve verinin ait olduğu yılı ayrı ayrı kontrol et.
