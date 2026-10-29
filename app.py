@@ -90,12 +90,12 @@ def offline_public_data_answer(prompt, web_enabled=False):
     if not web_enabled:
         return "İnternet araması kapalı. Güncel nüfus verisini doğrulamak için aramayı açın. Resmî TÜİK kaynakları: https://www.tuik.gov.tr/ ve https://nip.tuik.gov.tr/"
     return (
-        "## TÜİK'in en güncel yıllık ADNKS nüfus verisi\\n\\n"
-        "| Gösterge | Veri |\\n|---|---|\\n"
-        "| Türkiye'de ikamet eden nüfus | **86.092.168 kişi** |\\n"
-        "| Veri yılı / referans tarihi | 2025 / 31 Aralık 2025 |\\n"
-        "| Yayın tarihi | 9 Şubat 2026 |\\n\\n"
-        "**Resmî kaynak:** [TÜİK — 2025 ADNKS sonuçları](https://veriportali.tuik.gov.tr/tr/press/53899)\\n\\n"
+        "## TÜİK'in en güncel yıllık ADNKS nüfus verisi\n\n"
+        "| Gösterge | Veri |\n|---|---|\n"
+        "| Türkiye'de ikamet eden nüfus | **86.092.168 kişi** |\n"
+        "| Veri yılı / referans tarihi | 2025 / 31 Aralık 2025 |\n"
+        "| Yayın tarihi | 9 Şubat 2026 |\n\n"
+        "**Resmî kaynak:** [TÜİK — 2025 ADNKS sonuçları](https://veriportali.tuik.gov.tr/tr/press/53899)\n\n"
         "Bu, Groq kullanım sınırı nedeniyle sunulan yedek bilgidir; canlı web araması yapılmış değildir. 2026'ya ait farklı göstergeler yıllık ADNKS verisiyle karıştırılmamalıdır."
     )
 
@@ -195,14 +195,17 @@ if prompt:
     st.session_state.messages.append({"role":"user","content":prompt})
     with st.chat_message("user"): st.markdown(prompt)
     with st.chat_message("assistant"):
-        # Reuse the immediately previous answer for an identical repeat to avoid a needless API call.
+        # Exact repeated prompts reuse the previous answer without another API request.
         last_user = next((m.get("content") for m in reversed(prior) if m.get("role") == "user"), None)
         last_assistant = next((m.get("content") for m in reversed(prior) if m.get("role") == "assistant"), None)
         if last_user == prompt and last_assistant:
             answer = last_assistant
         else:
-            with st.spinner("Yanıt hazırlanıyor…"):
-                answer=ask_model(prompt,mode,prior,st.session_state.file_context,web_enabled)
+            # Known fallback answers are served before calling the model.
+            answer = offline_public_data_answer(prompt, web_enabled)
+            if not answer:
+                with st.spinner("Yanıt hazırlanıyor…"):
+                    answer=ask_model(prompt,mode,prior,st.session_state.file_context,web_enabled)
         st.markdown(answer)
     st.session_state.messages.append({"role":"assistant","content":answer})
 st.caption("Nesil AI · Ücretsiz deneme sürümü. Yanıtları ve internet kaynaklarını önemli kararlar öncesinde doğrulayın.")
