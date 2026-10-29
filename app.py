@@ -30,7 +30,7 @@ def ask_model(prompt, mode, history):
         return data["choices"][0]["message"]["content"]
     except urllib.error.HTTPError as exc:
         details = exc.read().decode("utf-8", errors="replace")
-        if exc.code in (401,403): return "API anahtarı geçersiz veya yetkisiz. Secrets ayarını kontrol et."
+        if exc.code in (401,403): return f"Groq kimlik doğrulama hatası (HTTP {exc.code}). Groq yanıtı: {details[:400]}\n\nSecrets içindeki GROQ_API_KEY değerini ve GroqCloud anahtarının etkin olduğunu kontrol et."
         if exc.code == 429: return "Kullanım sınırına ulaşıldı. Bir süre sonra tekrar dene."
         return f"Model sağlayıcısı hata döndürdü (HTTP {exc.code}): {details[:400]}"
     except Exception as exc: return f"Model bağlantısı başarısız oldu ({type(exc).__name__}). Biraz sonra tekrar dene."
