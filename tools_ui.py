@@ -31,12 +31,11 @@ def email_tools(st):
         saved = state.get("draft_fields", ("", "", ""))
         if state.get("draft_notice"):
             st.caption(state.draft_notice)
-        with st.form(f"email_draft_{generation}"):
-            recipient = st.text_input("Alıcı (tek adres, isteğe bağlı)", value=saved[0], max_chars=254, key=f"draft_to_{generation}")
-            subject = st.text_input("Konu", value=saved[1], max_chars=200, key=f"draft_subject_{generation}")
-            body = st.text_area("İleti metni", value=saved[2], max_chars=MAX_BODY, key=f"draft_body_{generation}")
-            prepare = st.form_submit_button("Taslağı hazırla")
-            copy = st.form_submit_button("Son yanıtı taslağa al", disabled=not any(m["role"] == "assistant" for m in state.messages))
+        recipient = st.text_input("Alıcı (tek adres, isteğe bağlı)", value=saved[0], max_chars=254, key=f"draft_to_{generation}")
+        subject = st.text_input("Konu", value=saved[1], max_chars=200, key=f"draft_subject_{generation}")
+        body = st.text_area("İleti metni", value=saved[2], max_chars=MAX_BODY, key=f"draft_body_{generation}")
+        prepare = st.button("Taslağı hazırla", key=f"draft_prepare_{generation}")
+        copy = st.button("Son yanıtı taslağa al", key=f"draft_copy_{generation}", disabled=not any(m["role"] == "assistant" for m in state.messages))
         snapshot = (recipient, subject, body)
         if copy:
             answer = next((m["content"] for m in reversed(state.messages) if m["role"] == "assistant"), "")
