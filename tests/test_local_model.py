@@ -21,6 +21,8 @@ class LocalModelTests(unittest.TestCase):
         math = _messages("2+2 kaçtır?", "Matematik öğretmeni", [], "", "")
         self.assertIn("Kodlama uzmanısın", coding[0]["content"])
         self.assertIn("Matematik öğretmenisin", math[0]["content"])
+        self.assertIn("%25 = 25/100 = 0,25 = 1/4", math[0]["content"])
+        self.assertIn("Decimal Forma", math[0]["content"])
 
     def test_unsupported_mode_rejected(self):
         with patch.dict(os.environ, {"NESIL_LOCAL_MODEL_ENABLED": "true"}):
