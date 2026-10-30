@@ -64,4 +64,6 @@ def research_caption(record):
         return "Canlı internet araştırması yapılmadı."
     if record.get("status") == "no_sources":
         return "Araştırma istendi; yanıtta kaynak bağlantısı bulunamadı. Güncel bilgi doğrulanmış sayılmamalı."
+    if any(source.get("content_status") == "retrieved" for source in record.get("sources", [])):
+        return "Bazı kaynak sayfalarından metin alındı. Yanıttaki iddiaların doğruluğu ve verinin en güncel olduğu ayrıca doğrulanmadı."
     return "Araştırma istendi; aşağıdaki bağlantılar yanıttan çıkarıldı. Sayfa içerikleri bağımsız doğrulanmadı."
