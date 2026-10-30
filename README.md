@@ -245,6 +245,11 @@ kodlar içindir. [Sınırlar, veri akışı ve lisans](PYTHON_MINI.md).
 python -m unittest discover -s tests -v
 ```
 
+Windows/Python 3.12 üzerinde 98 test doğrulandı. Ayrıca yerel Tesseract
+ve pypdfium2 ile bir sayfalık sentetik taranmış PDF'deki `98765 TL` ifadesi
+ayrı süreç üzerinden okundu. OCR, harfleri yanlış okuyabilir; gerçek belge
+ve farklı tarama kaliteleriyle ayrıca değerlendirilmelidir.
+
 Testler sahte anahtar, mock HTTP ve yerel örnek belgeler kullanır. Gerçek
 Groq, e-posta veya ücretli işlem çağrısı yapmaz. Gerçek kaynak doğruluğu,
 model cevap kalitesi ve mobil görsel değerlendirme ayrıca yapılmalıdır.

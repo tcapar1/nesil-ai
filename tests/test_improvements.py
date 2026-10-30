@@ -144,12 +144,26 @@ class ImprovementsTests(unittest.TestCase):
         context.Process.return_value = process
         receiver.poll.return_value = False
         process.pid = 123
-        process.is_alive.side_effect = [True, False]
+        process.is_alive.side_effect = [True, False, False]
         with patch("document_worker.multiprocessing.get_context", return_value=context):
             result = extract_bounded(Upload("slow.pdf", b"test"), timeout=0.01)
         self.assertIn("süre sınırını", result.scope)
         process.terminate.assert_called_once()
         receiver.close.assert_called_once()
+
+    def test_worker_cleanup_does_not_mask_timeout_if_os_is_slow(self):
+        from document_worker import extract_bounded
+        process, context, receiver, sender = Mock(), Mock(), Mock(), Mock()
+        context.Pipe.return_value = (receiver, sender)
+        context.Process.return_value = process
+        receiver.poll.return_value = False
+        process.pid = 123
+        process.is_alive.return_value = True
+        with patch("document_worker.multiprocessing.get_context", return_value=context):
+            result = extract_bounded(Upload("slow.pdf", b"test"), timeout=0.01)
+        self.assertIn("süre sınırını", result.scope)
+        process.kill.assert_called_once()
+        process.close.assert_not_called()
 
     def test_access_configuration_and_authentication(self):
         users = configured_users({"NESIL_USERS": {"ayse": "example-long-code-123"}})

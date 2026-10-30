@@ -61,4 +61,5 @@ def extract_bounded(upload, ocr=False, timeout=35):
             if process.is_alive():
                 process.kill()
                 process.join(1)
-            process.close()
+            if not process.is_alive():
+                process.close()
