@@ -115,6 +115,8 @@ begin
     raise exception using errcode = 'P0001', message = 'NESIL_PROVIDER_COOLDOWN';
   end if;
 
+  delete from public.nesil_usage_events where created_at < v_now - interval '2 days';
+
   select count(*), coalesce(sum(estimated_tokens),0)
     into v_count, v_tokens
     from public.nesil_usage_events
