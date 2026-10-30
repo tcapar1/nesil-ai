@@ -211,23 +211,29 @@ if prompt:
     prior=st.session_state.messages.copy()
     last_user = next((m.get("content") for m in reversed(prior) if m.get("role") == "user"), None)
     last_assistant = next((m.get("content") for m in reversed(prior) if m.get("role") == "assistant"), None)
+    prompt_lower = prompt.casefold()
     refresh_phrases = ("yeniden araştır", "tekrar araştır", "güncelle", "yeniden kontrol", "kaynağı kontrol et", "tekrar dene", "canlı doğrula")
-    force_refresh = any(term in prompt.casefold() for term in refresh_phrases)
+    research_phrases = ("araştır", "ara", "en güncel", "güncel", "son açıklanan", "resmî kaynak", "resmi kaynak", "kaynak bağlantısı", "doğrula")
+    force_refresh = any(term in prompt_lower for term in refresh_phrases)
     population_question = bool(offline_public_data_answer(prompt, web_enabled))
-    already_correct = (
+    research_intent = any(term in prompt_lower for term in research_phrases)
+    already_live_verified = (
         last_user == prompt and bool(last_assistant) and
         "86.092.168" in last_assistant and
-        ("53899" in last_assistant or "tuik.gov.tr" in last_assistant)
+        ("53899" in last_assistant or "tuik.gov.tr" in last_assistant) and
+        "canlı web araması yapılmamıştır" not in last_assistant.casefold() and
+        "kullanım sınırı dolduğu" not in last_assistant.casefold() and
+        "yedek yanıt" not in last_assistant.casefold()
     )
-    if last_user == prompt and already_correct and not force_refresh:
-        st.info("Bu sorunun doğrulanmış cevabı zaten sohbet geçmişinde. Yeniden kontrol etmemi isterseniz “yeniden araştır” yazın.")
+    if last_user == prompt and already_live_verified and not force_refresh:
+        st.info("Bu sorunun canlı kaynaklı cevabı zaten sohbet geçmişinde. Yeniden kontrol etmemi isterseniz “yeniden araştır” yazın.")
     else:
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
             with st.spinner("Yanıt hazırlanıyor…"):
-                # Explicit refresh of population data triggers live search.
-                use_live_search = web_enabled or (population_question and force_refresh)
+                # Research wording automatically enables web search for population questions.
+                use_live_search = web_enabled or (population_question and (research_intent or force_refresh))
                 answer=ask_model(prompt,mode,prior,st.session_state.file_context,use_live_search)
             st.markdown(answer)
         if last_user == prompt and prior and prior[-1].get("role") == "assistant":
