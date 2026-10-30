@@ -211,23 +211,24 @@ if prompt:
     prior=st.session_state.messages.copy()
     last_user = next((m.get("content") for m in reversed(prior) if m.get("role") == "user"), None)
     last_assistant = next((m.get("content") for m in reversed(prior) if m.get("role") == "assistant"), None)
-    trusted_population_answer = offline_public_data_answer(prompt, web_enabled)
+    refresh_phrases = ("yeniden araştır", "tekrar araştır", "güncelle", "yeniden kontrol", "kaynağı kontrol et", "tekrar dene", "canlı doğrula")
+    force_refresh = any(term in prompt.casefold() for term in refresh_phrases)
+    population_question = bool(offline_public_data_answer(prompt, web_enabled))
     already_correct = (
         last_user == prompt and bool(last_assistant) and
         "86.092.168" in last_assistant and
-        "veriportali.tuik.gov.tr/tr/press/53899" in last_assistant
+        ("53899" in last_assistant or "tuik.gov.tr" in last_assistant)
     )
-    if last_user == prompt and already_correct:
-        st.info("Bu sorunun TÜİK kaynaklı cevabı zaten mevcut.")
+    if last_user == prompt and already_correct and not force_refresh:
+        st.info("Bu sorunun doğrulanmış cevabı zaten sohbet geçmişinde. Yeniden kontrol etmemi isterseniz “yeniden araştır” yazın.")
     else:
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            if trusted_population_answer:
-                answer = trusted_population_answer
-            else:
-                with st.spinner("Yanıt hazırlanıyor…"):
-                    answer=ask_model(prompt,mode,prior,st.session_state.file_context,web_enabled)
+            with st.spinner("Yanıt hazırlanıyor…"):
+                # Explicit refresh of population data triggers live search.
+                use_live_search = web_enabled or (population_question and force_refresh)
+                answer=ask_model(prompt,mode,prior,st.session_state.file_context,use_live_search)
             st.markdown(answer)
         if last_user == prompt and prior and prior[-1].get("role") == "assistant":
             st.session_state.messages[-1] = {"role":"assistant","content":answer}
