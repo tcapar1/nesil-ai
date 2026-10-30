@@ -2,12 +2,13 @@
 import csv
 import io
 import zipfile
+import re
 from dataclasses import dataclass
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_TOTAL_BYTES = 20 * 1024 * 1024
 MAX_FILES = 5
-MAX_TEXT = 12000
+MAX_TEXT = 240000
 ALLOWED = ("txt", "md", "json", "py", "log", "csv", "pdf", "docx", "xlsx", "xlsm")
 
 
@@ -19,7 +20,7 @@ class FileResult:
     scope: str = ""
 
 
-def extract_file(upload):
+def extract_file(upload, ocr=False):
     name = upload.name
     if upload.size > MAX_FILE_BYTES:
         return FileResult(name, scope="10 MB sınırı aşıldı.")
@@ -50,7 +51,7 @@ def extract_file(upload):
             reader = csv.reader(io.StringIO(decoded), dialect)
             total = 0
             for index, row in enumerate(reader, 1):
-                if index > 200:
+                if index > 5000:
                     sampled = True
                     break
                 if len(row) > 50:
@@ -62,65 +63,87 @@ def extract_file(upload):
                 if total > MAX_TEXT:
                     sampled = True
                     break
-            scope = "En fazla 200 satır, 50 sütun ve hücre başına 500 karakter."
+            scope = "En fazla 5.000 satır, 50 sütun ve hücre başına 500 karakter."
         elif ext == "pdf":
             from pypdf import PdfReader
             reader = PdfReader(io.BytesIO(raw))
-            sampled = len(reader.pages) > 30
+            sampled = len(reader.pages) > 200
             total = 0
-            for index, page in enumerate(reader.pages[:30], 1):
-                text = f"[Sayfa {index}]\n" + (page.extract_text() or "")
+            ocr_count, ocr_failed, empty_pages = 0, False, 0
+            for index, page in enumerate(reader.pages[:200], 1):
+                page_text = page.extract_text() or ""
+                native_text = bool(page_text.strip())
+                if not page_text.strip():
+                    empty_pages += 1
+                    if ocr and ocr_count < 20 and not ocr_failed:
+                        try:
+                            from ocr_reader import ocr_page
+                            page_text = ocr_page(raw, index - 1)
+                            ocr_count += 1
+                        except Exception:
+                            ocr_failed = True
+                text = f"[Sayfa {index}{' OCR' if ocr and page_text.strip() and not native_text else ''}]\n" + page_text
                 parts.append(text[:MAX_TEXT + 1])
                 total += len(text)
                 if total > MAX_TEXT:
                     sampled = True
                     break
-            scope = f"PDF: toplam {len(reader.pages)} sayfa; en fazla ilk 30 sayfa. OCR yok."
+            scope = f"PDF: toplam {len(reader.pages)} sayfa; en fazla ilk 200 sayfa ve 240.000 karakter. OCR yok."
+            if ocr:
+                scope = scope.replace("OCR yok.", f"Yerel OCR: {ocr_count} sayfa; en fazla 20 taranmış sayfa. OCR metni hatalı olabilir.")
+                if ocr_failed:
+                    scope += " OCR kullanılamadı: isteğe bağlı paketleri, Tesseract ve dil paketlerini kontrol edin."
+            sampled = sampled or empty_pages > ocr_count or ocr_failed
         elif ext == "docx":
             from docx import Document
             doc = Document(io.BytesIO(raw))
             total = 0
-            for paragraph in doc.paragraphs:
+            for paragraph_index, paragraph in enumerate(doc.paragraphs, 1):
                 if paragraph.text.strip():
-                    parts.append(paragraph.text[:MAX_TEXT + 1])
+                    parts.append(f"[Paragraf {paragraph_index}]\n" + paragraph.text[:MAX_TEXT + 1])
                     total += len(paragraph.text)
                 if total > MAX_TEXT:
                     break
-            for index, table in enumerate(doc.tables[:10], 1):
+            for index, table in enumerate(doc.tables[:30], 1):
                 if total > MAX_TEXT:
                     break
-                for row_index, row in enumerate(table.rows[:100], 1):
+                for row_index, row in enumerate(table.rows[:1000], 1):
                     text = f"[Tablo {index}, satır {row_index}] " + " | ".join(c.text[:500] for c in row.cells[:50])
                     parts.append(text)
                     total += len(text)
                     if total > MAX_TEXT:
                         break
             sampled = True
-            scope = "Word ana metni ve en fazla 10 tablodan ilk 100 satır/50 sütun. Üstbilgi, metin kutusu ve görseller kapsam dışı."
+            scope = "Word ana metni ve en fazla 30 tablodan ilk 1.000 satır/50 sütun; toplam 240.000 karakter. Üstbilgi, metin kutusu ve görseller kapsam dışı."
         else:
             from openpyxl import load_workbook
             wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
             try:
-                for ws in wb.worksheets[:8]:
+                total = 0
+                for ws in wb.worksheets[:20]:
+                    if total >= MAX_TEXT:
+                        break
                     parts.append(f"[Sayfa: {ws.title}]")
                     sheet_chars = 0
-                    for row_index, row in enumerate(ws.iter_rows(min_row=1, max_row=200, max_col=50, values_only=True), 1):
+                    for row_index, row in enumerate(ws.iter_rows(min_row=1, max_row=2000, max_col=50, values_only=True), 1):
                         values = [str(v)[:500] if v is not None else "" for v in row]
                         if any(values):
-                            line = f"[Sayfa: {ws.title}, satır {row_index}, sütunlar A:AX] " + " | ".join(values)
+                            from openpyxl.utils import get_column_letter
+                            line = f"[Sayfa: {ws.title}, satır {row_index}] " + " | ".join(f"{get_column_letter(i)}{row_index}={value}" for i, value in enumerate(values, 1) if value)
                             parts.append(line)
                             sheet_chars += len(line)
-                            if sheet_chars > 2000:
+                            total += len(line)
+                            if sheet_chars >= 60000 or total >= MAX_TEXT:
                                 break
             finally:
                 wb.close()
             sampled = True
-            scope = "Excel: ilk 8 sayfadan en fazla 200 satır/50 sütun ve sayfa başına yaklaşık 2.000 karakter. Formüller hesaplanmaz; kayıtlı sonuçlar okunur, boş/eski olabilir. Makrolar çalıştırılmaz."
+            scope = "Excel: ilk 20 sayfadan en fazla 2.000 satır/50 sütun, sayfa başına yaklaşık 60.000 ve toplam 240.000 karakter. Formüller hesaplanmaz; kayıtlı sonuçlar boş/eski olabilir. Makrolar çalıştırılmaz."
         text = "\n".join(parts)
         sampled = sampled or len(text) > MAX_TEXT
         text = text[:MAX_TEXT]
         if not text.strip() or (ext == "pdf" and not any((p.split("\n", 1)[-1]).strip() for p in parts)):
-            return FileResult(name, scope="Okunabilir metin bulunamadı. Taranmış PDF için OCR gerekebilir.")
+            return FileResult(name, scope="Okunabilir metin bulunamadı. Taranmış PDF için OCR gerekebilir. " + scope)
         return FileResult(name, text, "kısmen okundu" if sampled else "okundu", scope + f" Çıkarılan kesit: {len(text)} karakter.")
     except Exception:
         return FileResult(name, scope="Dosya okunamadı. Biçim, bozulma veya parola korumasını kontrol edin.")
@@ -128,21 +151,49 @@ def extract_file(upload):
 
 def select_context(results, prompt, limit=5000):
     """Deterministic excerpts, shared fairly; no paid embedding or API calls."""
-    import re
     valid = [r for r in results if r.text]
     if not valid:
         return ""
-    terms = set(re.findall(r"\w{3,}", prompt.casefold()))
+    terms = search_terms(prompt)
     chunks = []
     per_file = max(100, (limit - 500) // len(valid))
     for result in valid:
-        blocks = [result.text[i:i + 700] for i in range(0, len(result.text), 700)]
-        ranked = sorted(enumerate(blocks), key=lambda pair: (-sum(t in pair[1].casefold() for t in terms), pair[0]))
+        blocks = document_chunks(result.text)
+        scores = [sum(t in normalize(block) for t in terms) for block in blocks]
+        # Broad summaries sample the whole indexed document, including its end.
+        positions = list(range(len(blocks)))
+        if positions and not any(scores):
+            anchors = list(dict.fromkeys([0, len(blocks) - 1, len(blocks) // 2, len(blocks) // 4, 3 * len(blocks) // 4]))
+            positions = anchors + [i for i in positions if i not in anchors]
+        ranked = sorted(positions, key=lambda i: -scores[i])
         selected, remaining = [], per_file
-        for index, block in ranked:
+        for index in ranked:
+            block = blocks[index]
             if remaining <= 0:
                 break
             selected.append((index, block[:remaining]))
             remaining -= len(block)
-        chunks.append(f"DOSYA: {result.name[:120]} — {result.status}; seçilmiş kesitler, tüm belge değil.\n" + "\n[…]\n".join(b for _, b in sorted(selected)))
+        chunks.append(f"DOSYA: {result.name[:120]} — {result.status}; ilgi sırasıyla seçilmiş kesitler, tüm belge değil.\n" + "\n[…]\n".join(b for _, b in selected))
     return "\n\n".join(chunks)[:limit]
+
+
+def normalize(text):
+    return text.casefold().translate(str.maketrans("çğıöşü", "cgiosu")).replace("\u0307", "")
+
+
+def search_terms(prompt):
+    stop = {"bir", "icin", "olan", "olarak", "belge", "belgede", "dosya", "dosyada", "bunu", "nedir", "ozetle", "lutfen"}
+    return {t for t in re.findall(r"\w{3,}", normalize(prompt)) if t not in stop}
+
+
+def document_chunks(text):
+    """Overlapping chunks retain nearest source marker and exact character range."""
+    markers = list(re.finditer(r"\[(?:Sayfa[^\]\n]*|Paragraf[^\]\n]*|Tablo[^\]\n]*)\]|(?:^|\n)Satır \d+:", text))
+    blocks, marker_index = [], 0
+    for start in range(0, len(text), 780):
+        end = min(len(text), start + 900)
+        while marker_index + 1 < len(markers) and markers[marker_index + 1].start() <= start:
+            marker_index += 1
+        location = markers[marker_index].group().strip() if markers and markers[marker_index].start() <= start else ""
+        blocks.append(f"[{location}; karakter {start + 1}–{end}]\n" + text[start:end])
+    return blocks

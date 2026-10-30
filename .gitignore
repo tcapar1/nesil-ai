@@ -3,3 +3,5 @@ __pycache__/
 .venv/
 .env
 .streamlit/secrets.toml
+.nesil-ai/
+*.sqlite3*

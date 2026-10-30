@@ -9,6 +9,7 @@ import re
 import socket
 import ssl
 import time
+import os
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from urllib.parse import urlsplit
@@ -36,7 +37,8 @@ def allowed_target(url):
     host = parsed.hostname.rstrip(".").lower()
     if parsed.scheme != "https" or parsed.port not in (None, 443):
         raise SourceError("https_only")
-    if host not in PRIMARY_HOSTS and not host.endswith(".gov.tr"):
+    extra_hosts = {h.strip().lower() for h in os.environ.get("NESIL_SOURCE_HOSTS", "").split(",") if h.strip()}
+    if host not in PRIMARY_HOSTS and host not in extra_hosts and not host.endswith(".gov.tr"):
         raise SourceError("not_allowed")
     # HTTP request targets must be ASCII; encode unicode URLs at their source.
     target = (parsed.path or "/") + ("?" + parsed.query if parsed.query else "")
@@ -181,7 +183,7 @@ class PageParser(HTMLParser):
             self.text_chars += len(text)
 
 
-def check_source(url, *, resolver=None, transport=None):
+def check_source(url, *, resolver=None, transport=None, question=""):
     result = {"content_status": "failed", "verified": False, "accessed_at": None,
               "published_at": None, "data_period": None, "source_title": None,
               "excerpt": "", "date_conflict": False, "retrieved_url": None}
@@ -203,7 +205,11 @@ def check_source(url, *, resolver=None, transport=None):
         else:
             parser = PageParser()
             parser.feed(text)
-            excerpt = " ".join(parser.text)[:1200]
+            body = " ".join(parser.text)
+            from file_reader import document_chunks, search_terms, normalize
+            terms = search_terms(question)
+            blocks = document_chunks(body)
+            excerpt = max(blocks, key=lambda b: sum(t in normalize(b) for t in terms), default="")[:1200] if terms else body[:1200]
             result["source_title"] = " ".join(parser.title)[:500] or None
             if len(parser.dates) == 1:
                 result["published_at"] = next(iter(parser.dates))

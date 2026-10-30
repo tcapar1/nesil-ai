@@ -6,7 +6,7 @@ import urllib.error
 import zipfile
 from unittest.mock import patch
 
-from file_reader import extract_file, select_context, FileResult, MAX_FILE_BYTES
+from file_reader import extract_file, select_context, FileResult, MAX_FILE_BYTES, MAX_TEXT
 from model_client import ask_model, read_api_key, build_messages, retry_seconds
 
 
@@ -66,8 +66,8 @@ class CoreTests(unittest.TestCase):
         def fake(request, **kwargs):
             payload = json.loads(request.data)
             self.assertEqual(payload["tools"], [{"type": "browser_search"}])
-            self.assertEqual(payload["tool_choice"], "required")
-            return io.BytesIO(json.dumps({"choices": [{"message": {"content": "answer"}, "finish_reason": "length"}], "usage": {"total_tokens": 10}}).encode())
+            self.assertEqual(payload["tool_choice"], "auto")
+            return io.BytesIO(json.dumps({"choices": [{"message": {"content": "[Kaynak](https://example.org/)"}, "finish_reason": "length"}], "usage": {"total_tokens": 10}}).encode())
         result = ask_model("Türkiye nüfus artışı?", "Genel", [], web_enabled=True, api_key="fake", opener=fake)
         self.assertTrue(result.ok)
         self.assertIn("kesildi", result.text)
@@ -78,7 +78,7 @@ class CoreTests(unittest.TestCase):
             self.assertFalse(ask_model("x", "x", [], api_key="fake", opener=lambda *a, **k: io.BytesIO(raw)).ok)
 
     def test_whole_recent_messages_and_missing_context_notice(self):
-        history = [{"role": "user", "content": "x" * 15000}, {"role": "user", "content": "recent"}]
+        history = [{"role": "user", "content": "x" * 30000}, {"role": "user", "content": "recent"}]
         result = build_messages("next", "Genel", history)
         self.assertEqual(result[1]["content"], "recent")
         self.assertIn("eski mesajların", result[0]["content"])
@@ -95,9 +95,9 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(extract_file(upload).status, "okunamadı")
 
     def test_text_truncation_visible(self):
-        result = extract_file(Upload("sample.txt", b"a" * 15000))
+        result = extract_file(Upload("sample.txt", b"a" * (MAX_TEXT + 100)))
         self.assertEqual(result.status, "kısmen okundu")
-        self.assertEqual(len(result.text), 12000)
+        self.assertEqual(len(result.text), MAX_TEXT)
 
     def test_csv_semicolon(self):
         result = extract_file(Upload("test.csv", "ad;tutar\nörnek;42".encode()))
