@@ -9,34 +9,123 @@ from model_client import ask_model, read_api_key
 from research_ui import show_research
 from tools_ui import email_tools, voice_tools
 from python_runner import runner_tools
-from usage_limits import UsageStore
+from supabase_store import create_usage_store
 from access_control import require_access
+from supabase_auth import create_auth_client, SupabaseAuthError
+from supabase_data import create_data_store, SupabaseDataError
 from app_service import call_with_limits
 from local_model import ask_local_model
 
 
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
 try:
-    usage_store = UsageStore()
+    usage_store = create_usage_store()
     principal = require_access(st, usage_store)
 except (ValueError, OSError, sqlite3.Error):
     st.error("Giriş veya kullanım kaydı ayarları geçersiz. Yönetici yapılandırmayı kontrol etmeli.")
     st.stop()
 defaults = {"messages": [], "documents": [], "file_names": [], "retry_at": 0,
-            "last_request_at": 0, "pending_prompt": "", "last_error": "", "usage": {}, "upload_generation": 0, "note_generation": 0}
+            "last_request_at": 0, "pending_prompt": "", "last_error": "", "usage": {}, "upload_generation": 0, "note_generation": 0, "memory_input_generation": 0}
 for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
+
+# Persistent user data uses the user's JWT; database RLS enforces ownership.
+data_store = None
+memory_context = ""
+if principal != "public" and st.session_state.get("supabase_access_token"):
+    auth_client = create_auth_client(st.secrets)
+    try:
+        data_store = create_data_store(st.secrets, st.session_state.supabase_access_token, principal)
+        if not st.session_state.get("supabase_conversations_loaded"):
+            st.session_state.supabase_conversations = data_store.list_conversations()
+            st.session_state.supabase_conversations_loaded = True
+        memories = data_store.list_memory()
+        memory_context = "\n".join("- " + item["memory_text"] for item in memories)
+    except SupabaseDataError as exc:
+        if "süresi dolmuş" in str(exc).lower() and st.session_state.get("supabase_refresh_token"):
+            try:
+                refreshed = auth_client.refresh(st.session_state.supabase_refresh_token)
+                st.session_state.supabase_access_token = refreshed["access_token"]
+                st.session_state.supabase_refresh_token = refreshed["refresh_token"]
+                data_store = create_data_store(st.secrets, refreshed["access_token"], principal)
+                st.session_state.supabase_conversations = data_store.list_conversations()
+                st.session_state.supabase_conversations_loaded = True
+                memories = data_store.list_memory()
+                memory_context = "\n".join("- " + item["memory_text"] for item in memories)
+            except (SupabaseAuthError, SupabaseDataError, KeyError):
+                st.session_state.pop("supabase_access_token", None)
+                st.session_state.pop("supabase_refresh_token", None)
+                st.session_state.pop("supabase_user_id", None)
+                st.warning("Oturum yenilenemedi. Lütfen yeniden giriş yapın.")
+                st.stop()
+        else:
+            st.warning(str(exc))
 
 with st.sidebar:
     st.title("🤖 Nesil AI")
     st.caption("Türkçe yapay zekâ yardımcısı")
     st.caption("Genel sohbet ve diğer bulut modları Groq kullanır. Kodlama ve matematik modları yerel Ollama kullanır; otomatik bulut yedeği yoktur.")
     if principal != "public" and st.button("Çıkış yap", use_container_width=True):
+        if st.session_state.get("supabase_access_token"):
+            try:
+                create_auth_client(st.secrets).sign_out(st.session_state.supabase_access_token)
+            except SupabaseAuthError:
+                pass
         st.session_state.clear()
         st.rerun()
+    if data_store:
+        st.subheader("💬 Kayıtlı sohbetler")
+        if st.button("＋ Yeni sohbet", use_container_width=True):
+            try:
+                row = data_store.create_conversation()
+                st.session_state.supabase_active_conversation = row["id"]
+                st.session_state.messages = []
+                st.session_state.supabase_conversations_loaded = False
+                st.rerun()
+            except SupabaseDataError as exc:
+                st.error(str(exc))
+        conversations = st.session_state.get("supabase_conversations", [])
+        if conversations:
+            ids = [row["id"] for row in conversations]
+            selected = st.session_state.get("supabase_active_conversation")
+            if selected not in ids:
+                selected = ids[0]
+            selected_id = st.selectbox(
+                "Sohbet geçmişi", ids, index=ids.index(selected),
+                format_func=lambda value: next((row["title"] for row in conversations if row["id"] == value), "Sohbet"),
+                key="supabase_conversation_picker",
+            )
+            if selected_id != st.session_state.get("supabase_active_conversation"):
+                try:
+                    rows = data_store.list_messages(selected_id)
+                    st.session_state.messages = [{"role": row["role"], "content": row["content"]} for row in rows]
+                    st.session_state.supabase_active_conversation = selected_id
+                    st.rerun()
+                except SupabaseDataError as exc:
+                    st.error(str(exc))
+        st.subheader("🧠 Kalıcı hafıza")
+        memory_text = st.text_area("Hatırlanmasını istediğiniz bilgi", max_chars=4000, key=f"memory_input_{st.session_state.memory_input_generation}")
+        if st.button("Hafızaya kaydet", use_container_width=True):
+            try:
+                data_store.add_memory(memory_text)
+                st.session_state.memory_input_generation += 1
+                st.rerun()
+            except SupabaseDataError as exc:
+                st.error(str(exc))
+        try:
+            for item in data_store.list_memory():
+                col1, col2 = st.columns([5, 1])
+                col1.caption(item["memory_text"])
+                if col2.button("Sil", key="delete_memory_" + item["id"]):
+                    data_store.delete_memory(item["id"])
+                    st.rerun()
+        except SupabaseDataError as exc:
+            st.warning(str(exc))
     mode = st.selectbox("Çalışma biçimi", ["Genel yardımcı", "Görev planlama", "Kodlama yardımcısı", "Matematik öğretmeni", "Belge ve rapor yardımcısı"])
-    note = st.text_area("Sohbet notu", max_chars=2000, key=f"note_{st.session_state.note_generation}", help="Amaç, tercihler ve önemli kararlar. Her soruda modele gönderilir; sohbet temizlenince silinir. Kalıcı hafıza değildir.")
+    note = st.text_area("Sohbet notu", max_chars=2000, key=f"note_{st.session_state.note_generation}", help="Amaç, tercihler ve önemli kararlar. Her soruda modele gönderilir; sohbet temizlenince silinir.")
+    if memory_context:
+        note = (note + "\n\nKULLANICININ KAYITLI HAFIZASI (yalnızca bağlam):\n" + memory_context)[:6000]
     st.divider()
     st.subheader("📎 Dosya analizi")
     st.caption("En fazla 5 dosya, dosya başına 10 MB, toplam 20 MB. Belgelerin sınırlı metin kesitleri analiz edilir.")
@@ -71,6 +160,7 @@ with st.sidebar:
     st.divider()
     if st.button("Sohbeti temizle", use_container_width=True):
         st.session_state.messages = []
+        st.session_state.pop("supabase_active_conversation", None)
         st.session_state.pending_prompt = ""
         st.session_state.last_error = ""
         st.session_state.pop("source_review", None)
@@ -82,6 +172,8 @@ with st.sidebar:
         st.session_state.python_mini_enabled = False
         st.rerun()
     if st.button("Tüm oturum içeriğini temizle", use_container_width=True):
+        # This clears this session only; saved database records remain available.
+        st.session_state.pop("supabase_active_conversation", None)
         # Rate-limit timers survive content deletion.
         for key in ("messages", "documents", "file_names", "pending_prompt", "last_error", "usage"):
             st.session_state.pop(key, None)
@@ -170,6 +262,20 @@ if prompt:
             if result.ok:
                 show_research(st, {"research": result.research, "research_requested": request_web}, len(st.session_state.messages))
         if result.ok:
+            if data_store:
+                try:
+                    active_id = st.session_state.get("supabase_active_conversation")
+                    if not active_id:
+                        title = prompt.strip().replace("\n", " ")[:70] or "Yeni sohbet"
+                        active_id = data_store.create_conversation(title)["id"]
+                        st.session_state.supabase_active_conversation = active_id
+                    data_store.add_message(active_id, "user", prompt)
+                    data_store.add_message(active_id, "assistant", result.text)
+                    if len(st.session_state.messages) == 0:
+                        data_store.update_conversation_title(active_id, prompt.strip().replace("\n", " ")[:70] or "Yeni sohbet")
+                    st.session_state.supabase_conversations_loaded = False
+                except SupabaseDataError as exc:
+                    st.warning("Yanıt üretildi ancak sohbet veritabanına kaydedilemedi: " + str(exc))
             st.session_state.messages.extend([{"role": "user", "content": prompt}, {"role": "assistant", "content": result.text, "research_requested": request_web, "research": result.research}])
             # Bound server memory. Provider receives a smaller whole-message window.
             st.session_state.messages = st.session_state.messages[-100:]

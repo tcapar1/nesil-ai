@@ -300,3 +300,51 @@ Mevcut bilgisayardaki 8 GB RAM ve 4 GB ekran kartı belleği nedeniyle bu modell
 yanıt süresi yavaş olabilir. Önce 3B kodlama modelini deneyin; iki modeli aynı anda
 yüklemeyin. Matematik modeli ayrıca indirildiğinde kullanılabilir. Model indirme ve
 çalıştırma gerçek bilgisayarda ayrıca doğrulanmalıdır.
+
+
+## Supabase ile kalıcı kullanım kotası ve veri altyapısı
+
+Geliştirme dalında Supabase/PostgreSQL desteği isteğe bağlıdır. SQLite yerel
+geliştirme için varsayılan kalır. Supabase'e geçmeden önce
+`supabase/migrations/202610310001_initial_schema.sql` dosyasını Supabase SQL
+Editor üzerinden uygulayın. Ardından sunucu ortamında şu değişkenleri tanımlayın:
+
+- `NESIL_STORAGE_BACKEND=supabase`
+- `SUPABASE_URL=https://YOUR-PROJECT.supabase.co`
+- `SUPABASE_SERVICE_ROLE_KEY=...`
+
+Service-role anahtarını yalnızca Streamlit Secrets veya sunucu ortamında tutun;
+asla GitHub'a, tarayıcıya veya kullanıcıya göstermeyin. Uygulama RPC üzerinden
+atomik kota ayırır ve sonuçları uzlaştırır. Supabase ayarı eksikse kota kaydı
+başarısız olur ve model çağrısı yapılmaz. Yerel geliştirmede
+`NESIL_STORAGE_BACKEND=sqlite` kullanılabilir.
+
+Migration ayrıca kullanıcı profili, konuşma, mesaj ve kullanıcıya ait hafıza
+tablolarını RLS açık şekilde hazırlar. Henüz sohbet/hafıza tablolarına yazma
+ve Supabase Auth arayüzü bağlanmış değildir; bu tablolar sonraki aşama için
+şemadır. İstemci rolleri için hiçbir okuma/yazma politikası açılmaz. Gerçek
+kullanıcı kimliği, oturum ve kullanıcı onaylı hafıza akışı bağlanmadan bu
+tablolar kullanılmamalıdır. Supabase Auth entegrasyonu ve veri silme
+akışları ayrı test edilmeden kalıcı sohbet etkinleştirilmez.
+
+
+### Supabase Auth (geliştirme aşaması)
+
+E-posta/şifre girişini etkinleştirmek için Streamlit Secrets içine ayrıca
+`SUPABASE_ANON_KEY` (veya `SUPABASE_PUBLISHABLE_KEY`) ekleyin.
+Ardından `NESIL_AUTH_BACKEND=supabase` ayarını kullanın. Supabase Dashboard
+üzerinde Authentication > Providers > Email ayarları ve e-posta doğrulama
+seçenekleri yönetilmelidir. Public/anon anahtar kullanıcı istemcilerinde
+kullanılmak üzere tasarlanmıştır; service-role anahtarı yalnızca sunucuda
+kalmalıdır.
+
+Yeni `202610310002_auth_rls_policies.sql` migration dosyası, ilk şema
+migration'ından sonra SQL Editor'de ayrıca uygulanmalıdır. Bu migration
+profiller, sohbetler, mesajlar ve hafıza kayıtları için kullanıcı sahipliği
+RLS politikalarını hazırlar. **Bu aşamada sohbet ve hafıza kayıtlarının
+PostgreSQL'e kaydedilmesi henüz uygulamaya bağlanmamıştır.** Giriş ekranı ve
+çıkış akışı eklenmiştir; kalıcı sohbet CRUD, token yenileme ve kullanıcı
+kontrollü hafıza akışı tamamlanıp test edilmeden bu özellikler kullanılabilir
+olarak kabul edilmemelidir. Geliştirme dalı varsayılan olarak eski erişim
+kapısını korur; Supabase Auth ancak `NESIL_AUTH_BACKEND=supabase`
+olarak açıkça seçilirse etkinleşir.
