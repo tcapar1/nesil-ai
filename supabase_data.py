@@ -10,12 +10,13 @@ class SupabaseDataError(ValueError):
 
 
 class SupabaseDataStore:
-    def __init__(self, url, anon_key, access_token, timeout=8):
+    def __init__(self, url, anon_key, access_token, user_id, timeout=8):
         self.url = (url or "").rstrip("/")
         self.anon_key = anon_key or ""
         self.access_token = access_token or ""
+        self.user_id = user_id or ""
         self.timeout = timeout
-        if not self.url or not self.anon_key or not self.access_token:
+        if not self.url or not self.anon_key or not self.access_token or not self.user_id:
             raise SupabaseDataError("Supabase kullanıcı oturumu yapılandırılmamış.")
         if not self.url.startswith("https://") and not self.url.startswith(("http://localhost", "http://127.0.0.1")):
             raise SupabaseDataError("Supabase adresi HTTPS olmalı.")
@@ -62,7 +63,7 @@ class SupabaseDataStore:
     def create_conversation(self, title="Yeni sohbet"):
         title = (title or "Yeni sohbet").strip()[:120] or "Yeni sohbet"
         q = urllib.parse.urlencode({"select": "id,title,created_at,updated_at"})
-        rows = self._request("POST", "nesil_conversations", q, {"title": title}, "return=representation")
+        rows = self._request("POST", "nesil_conversations", q, {"user_id": self.user_id, "title": title}, "return=representation")
         if not rows or not rows[0].get("id"):
             raise SupabaseDataError("Yeni sohbet kaydı oluşturulamadı.")
         return rows[0]
@@ -88,7 +89,7 @@ class SupabaseDataStore:
         q = urllib.parse.urlencode({"id": "eq." + str(conversation_id)})
         self._request("PATCH", "nesil_conversations", q,
                       {"title": (title or "Yeni sohbet").strip()[:120] or "Yeni sohbet",
-                       "updated_at": "now()"}, "return=minimal")
+                       "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}, "return=minimal")
 
     def list_memory(self, limit=50):
         q = urllib.parse.urlencode({"select": "id,memory_text,category,created_at,updated_at",
@@ -100,7 +101,7 @@ class SupabaseDataStore:
             raise SupabaseDataError("Hafıza metni 1-4000 karakter olmalı.")
         q = urllib.parse.urlencode({"select": "id,memory_text,category,created_at,updated_at"})
         rows = self._request("POST", "nesil_memory_items", q,
-                             {"memory_text": memory_text.strip(), "category": (category or "general")[:40]},
+                             {"user_id": self.user_id, "memory_text": memory_text.strip(), "category": (category or "general")[:40]},
                              "return=representation")
         if not rows:
             raise SupabaseDataError("Hafıza kaydedilemedi.")
@@ -111,7 +112,7 @@ class SupabaseDataStore:
         self._request("DELETE", "nesil_memory_items", q, prefer="return=minimal")
 
 
-def create_data_store(secrets, access_token):
+def create_data_store(secrets, access_token, user_id):
     def setting(*keys):
         for key in keys:
             try:
@@ -127,4 +128,4 @@ def create_data_store(secrets, access_token):
         return ""
     return SupabaseDataStore(setting("SUPABASE_URL"),
                               setting("SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY"),
-                              access_token)
+                              access_token, user_id)
