@@ -52,7 +52,29 @@ class SupabaseStoreTests(unittest.TestCase):
     def test_backend_selection_is_explicit(self):
         with patch.dict("os.environ", {"NESIL_STORAGE_BACKEND": "unknown"}):
             with self.assertRaises(ValueError):
-                create_usage_store()
+                create_usage_store(secrets={})
+
+    def test_streamlit_secrets_are_used_for_supabase_configuration(self):
+        secrets = {
+            "NESIL_STORAGE_BACKEND": "supabase",
+            "SUPABASE_URL": "https://secrets-project.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "server-only-secret-test",
+        }
+        with patch.dict("os.environ", {}, clear=True):
+            store = create_usage_store(secrets=secrets)
+        self.assertIsInstance(store, SupabaseUsageStore)
+        self.assertEqual(store.url, "https://secrets-project.supabase.co")
+        self.assertEqual(store.service_key, "server-only-secret-test")
+
+    def test_environment_variables_are_fallback_for_secrets(self):
+        with patch.dict("os.environ", {
+            "NESIL_STORAGE_BACKEND": "supabase",
+            "SUPABASE_URL": "https://environment-project.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "environment-secret-test",
+        }, clear=True):
+            store = create_usage_store(secrets={})
+        self.assertEqual(store.url, "https://environment-project.supabase.co")
+        self.assertEqual(store.service_key, "environment-secret-test")
 
     def test_rpc_errors_do_not_expose_provider_body(self):
         import io
