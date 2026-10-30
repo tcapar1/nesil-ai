@@ -143,14 +143,24 @@ def ask_model(prompt, mode, history, file_context="", web_enabled=False):
         return f"Model bağlantısı başarısız oldu ({type(exc).__name__}). Biraz sonra tekrar deneyin."
 
 if "messages" not in st.session_state: st.session_state.messages=[]
-# Clean up duplicate adjacent user/assistant pairs left by earlier app versions.
+# Remove repeated identical user/assistant pairs left by earlier app versions.
 _clean_messages = []
-for _message in st.session_state.messages:
-    if (_clean_messages and
-        _clean_messages[-1].get("role") == _message.get("role") and
-        _clean_messages[-1].get("content") == _message.get("content")):
-        continue
-    _clean_messages.append(_message)
+_i = 0
+while _i < len(st.session_state.messages):
+    _pair = st.session_state.messages[_i:_i + 2]
+    if len(_pair) == 2 and _pair[0].get("role") == "user" and _pair[1].get("role") == "assistant":
+        _signature = (_pair[0].get("content"), _pair[1].get("content"))
+        _previous_signature = None
+        if len(_clean_messages) >= 2:
+            _previous_signature = (_clean_messages[-2].get("content"), _clean_messages[-1].get("content"))
+        if _signature == _previous_signature:
+            _i += 2
+            continue
+        _clean_messages.extend(_pair)
+        _i += 2
+    else:
+        _clean_messages.append(st.session_state.messages[_i])
+        _i += 1
 st.session_state.messages = _clean_messages
 if "file_context" not in st.session_state: st.session_state.file_context=""
 if "file_names" not in st.session_state: st.session_state.file_names=[]
@@ -202,16 +212,15 @@ if prompt:
     last_user = next((m.get("content") for m in reversed(prior) if m.get("role") == "user"), None)
     last_assistant = next((m.get("content") for m in reversed(prior) if m.get("role") == "assistant"), None)
     repeated = (last_user == prompt and bool(last_assistant))
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    with st.chat_message("assistant"):
-        if repeated:
-            answer = last_assistant
-        else:
+    if repeated:
+        st.info("Bu soruyu zaten yanıtladım. Aynı cevabı tekrar eklemedim; yeni bir soru yazabilirsiniz.")
+    else:
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        with st.chat_message("assistant"):
             with st.spinner("Yanıt hazırlanıyor…"):
                 answer=ask_model(prompt,mode,prior,st.session_state.file_context,web_enabled)
-        st.markdown(answer)
-    if not repeated:
+            st.markdown(answer)
         st.session_state.messages.append({"role":"user","content":prompt})
         st.session_state.messages.append({"role":"assistant","content":answer})
 st.caption("Nesil AI · Ücretsiz deneme sürümü. Yanıtları ve internet kaynaklarını önemli kararlar öncesinde doğrulayın.")
