@@ -36,10 +36,9 @@ def require_access(st, store):
         return st.session_state.principal
     st.title("🤖 Nesil AI")
     st.caption("Devam etmek için kurum hesabınızla giriş yapın.")
-    with st.form("access"):
-        name = st.text_input("Kullanıcı adı", max_chars=100)
-        code = st.text_input("Erişim kodu", type="password", max_chars=200)
-        submit = st.form_submit_button("Giriş yap")
+    name = st.text_input("Kullanıcı adı", max_chars=100)
+    code = st.text_input("Erişim kodu", type="password", max_chars=200)
+    submit = st.button("Giriş yap")
     if submit:
         from usage_limits import UsageLimit
         try:

@@ -27,12 +27,15 @@ class AppTests(unittest.TestCase):
     def test_initial_screen(self):
         app = self.start()
         self.assertEqual(len(app.chat_input), 1)
-        self.assertEqual(len(app.selectbox[0].options), 4)
+        self.assertEqual(len(app.selectbox[0].options), 5)
 
     def test_login_gate_and_logout(self):
         with patch("model_client.ask_model") as provider:
             app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=20)
             app.secrets["NESIL_USERS"] = {"ayse": "long-test-access-code"}
+            # AppTest secrets are process-global; prevent this login fixture from
+            # leaking into later tests that expect the public app configuration.
+            self.addCleanup(lambda: app.secrets.pop("NESIL_USERS", None))
             app.run()
             self.assertEqual(len(app.chat_input), 0)
             next(w for w in app.text_input if w.label == "Kullanıcı adı").set_value("ayse")
@@ -228,6 +231,37 @@ class AppTests(unittest.TestCase):
         app.run()
         self.assertFalse(app.exception)
         self.assertEqual(len([b for b in app.button if b.label == "Kaynak sayfalarını kontrol et"]), 2)
+
+    def test_coding_mode_routes_to_local_provider(self):
+        with patch.dict(os.environ, {"NESIL_LOCAL_MODEL_ENABLED": "true"}), \
+             patch("local_model.ask_local_model", return_value=ModelResult("Yerel cevap", ok=True)) as local_provider, \
+             patch("app_service.call_with_limits") as cloud_provider:
+            app = self.start()
+            app.selectbox[0].select("Kodlama yardımcısı").run()
+            self.assertEqual(app.selectbox[0].value, "Kodlama yardımcısı")
+            app.session_state["pending_prompt"] = "Python fonksiyonu yaz"
+            app.session_state["last_request_at"] = 0
+            app.run()
+            next(b for b in app.button if b.label == "Soruyu yeniden dene").click().run()
+            self.assertFalse(app.exception)
+            local_provider.assert_called_once()
+            cloud_provider.assert_not_called()
+            self.assertEqual(app.session_state["messages"][-1]["content"], "Yerel cevap")
+
+    def test_math_mode_routes_to_local_provider(self):
+        with patch.dict(os.environ, {"NESIL_LOCAL_MODEL_ENABLED": "true"}), \
+             patch("local_model.ask_local_model", return_value=ModelResult("Matematik cevabı", ok=True)) as local_provider, \
+             patch("app_service.call_with_limits") as cloud_provider:
+            app = self.start()
+            app.selectbox[0].select("Matematik öğretmeni").run()
+            self.assertEqual(app.selectbox[0].value, "Matematik öğretmeni")
+            app.session_state["pending_prompt"] = "2+2 kaçtır?"
+            app.session_state["last_request_at"] = 0
+            app.run()
+            next(b for b in app.button if b.label == "Soruyu yeniden dene").click().run()
+            self.assertFalse(app.exception)
+            local_provider.assert_called_once()
+            cloud_provider.assert_not_called()
 
 
 if __name__ == "__main__":

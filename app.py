@@ -12,6 +12,7 @@ from python_runner import runner_tools
 from usage_limits import UsageStore
 from access_control import require_access
 from app_service import call_with_limits
+from local_model import ask_local_model
 
 
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
@@ -30,18 +31,18 @@ for key, value in defaults.items():
 with st.sidebar:
     st.title("🤖 Nesil AI")
     st.caption("Türkçe yapay zekâ yardımcısı")
-    st.caption("Ücretsiz kota için sınırlandırılmış kullanım. Groq hesabı Free planda olmalıdır. Ortak kota dolunca beklenir; ücretli yedek servis kullanılmaz.")
+    st.caption("Genel sohbet ve diğer bulut modları Groq kullanır. Kodlama ve matematik modları yerel Ollama kullanır; otomatik bulut yedeği yoktur.")
     if principal != "public" and st.button("Çıkış yap", use_container_width=True):
         st.session_state.clear()
         st.rerun()
-    mode = st.selectbox("Çalışma biçimi", ["Genel yardımcı", "Görev planlama", "Kodlama yardımcısı", "Belge ve rapor yardımcısı"])
+    mode = st.selectbox("Çalışma biçimi", ["Genel yardımcı", "Görev planlama", "Kodlama yardımcısı", "Matematik öğretmeni", "Belge ve rapor yardımcısı"])
     note = st.text_area("Sohbet notu", max_chars=2000, key=f"note_{st.session_state.note_generation}", help="Amaç, tercihler ve önemli kararlar. Her soruda modele gönderilir; sohbet temizlenince silinir. Kalıcı hafıza değildir.")
     st.divider()
     st.subheader("📎 Dosya analizi")
     st.caption("En fazla 5 dosya, dosya başına 10 MB, toplam 20 MB. Belgelerin sınırlı metin kesitleri analiz edilir.")
     uploads = st.file_uploader("Dosya seçin", type=list(ALLOWED), accept_multiple_files=True, key=f"uploads_{st.session_state.upload_generation}")
     ocr_enabled = st.checkbox("Taranmış PDF için yerel OCR kullan", value=False, help="Sunucuda OCR paketleri ve Tesseract gerekir. İlk 20 taranmış sayfaya kadar denenir; sonuçları kontrol edin.")
-    st.caption("Soru, sohbet bağlamı ve ilgili dosya kesitleri yanıt için Groq'a gönderilir. Uygulama bunları kalıcı bir veritabanına kaydetmez. Hassas verileri yüklemeyin.")
+    st.caption("Dosya kesitleri seçili modun sağlayıcısına gönderilir: yerel modlarda Ollama'ya, diğer modlarda Groq'a. Hassas verileri yüklemeyin.")
     if st.button("Seçilen dosyaları oku", disabled=not uploads, use_container_width=True):
         if len(uploads) > MAX_FILES or sum(up.size for up in uploads) > MAX_TOTAL_BYTES:
             st.error("En fazla 5 dosya ve toplam 20 MB yükleyebilirsiniz. Önceki dosya bağlamı korunuyor.")
@@ -63,8 +64,9 @@ with st.sidebar:
         st.session_state.file_names = []
         st.rerun()
     st.divider()
-    web_enabled = st.checkbox("İnternette araştır", value=False)
-    st.caption("Güncel sorularda araştırma kullanılır; selamlaşmalarda arama zorlanmaz. Kaynak bağlantıları ayrıca gösterilir. Bağlantı bulunamazsa kesin araştırma yanıtı sunulmaz.")
+    local_mode = mode in ("Kodlama yardımcısı", "Matematik öğretmeni")
+    web_enabled = st.checkbox("İnternette araştır", value=False, disabled=local_mode)
+    st.caption("İnternet araştırması yalnızca Groq modlarında kullanılabilir. Yerel Ollama modlarında ağ araştırması yapılmaz.")
     email_tools(st)
     st.divider()
     if st.button("Sohbeti temizle", use_container_width=True):
@@ -148,13 +150,22 @@ if prompt:
         reviewing = bool(review and prompt == review["prompt"])
         if reviewing:
             context = review["context"]
-        request_web = web_enabled and not reviewing
+        request_web = web_enabled and not reviewing and mode not in ("Kodlama yardımcısı", "Matematik öğretmeni")
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            label = "Kaynaklı araştırma yanıtı hazırlanıyor…" if web_enabled else "Yanıt hazırlanıyor…"
+            local_mode = mode in ("Kodlama yardımcısı", "Matematik öğretmeni")
+            label = "Kaynaklı araştırma yanıtı hazırlanıyor…" if request_web else "Yerel model yanıt hazırlıyor…" if local_mode else "Yanıt hazırlanıyor…"
             with st.spinner(label):
-                result = call_with_limits(ask_model, usage_store, principal, prompt, mode, [] if reviewing else st.session_state.messages, context, request_web, api_key=read_api_key(st.secrets), note="" if reviewing else note)
+                history = [] if reviewing else st.session_state.messages
+                if local_mode:
+                    result = ask_local_model(prompt, mode, history, context, note="" if reviewing else note)
+                else:
+                    result = call_with_limits(
+                        ask_model, usage_store, principal, prompt, mode,
+                        history, context, request_web, api_key=read_api_key(st.secrets),
+                        note="" if reviewing else note,
+                    )
             st.markdown(result.text)
             if result.ok:
                 show_research(st, {"research": result.research, "research_requested": request_web}, len(st.session_state.messages))

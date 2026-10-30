@@ -1,6 +1,6 @@
 # Nesil AI
 
-Türkçe öncelikli Streamlit asistanı. Bu sürüm sohbet, dört çalışma modu,
+Türkçe öncelikli Streamlit asistanı. Bu sürüm sohbet, beş çalışma modu,
 belgelerden sınırlı metin çıkarma, isteğe bağlı Groq web araştırması ve TXT
 sohbet indirme sunar. Ayrıca gönderilmeyen e-posta taslağı indirme ve
 tarayıcıdaki yerel seslerle son yanıtı dinleme araçları vardır. Bilgisayar
@@ -48,8 +48,9 @@ OCR kullanılmadan normal metinli PDF'ler okunmaya devam eder. OCR gerçek
 motor kurulumu ve tarama kalitesiyle ayrıca değerlendirilmelidir.
 
 Uygulama konuşmaları kalıcı veritabanına yazmaz; oturum belleğinde en fazla
-100 mesaj tutar. Yanıt için soru, sınırlı sohbet geçmişi ve seçilen dosya
-kesitleri Groq'a aktarılır. Web araştırması ek hizmetlere veri aktarımı
+100 mesaj tutar. Genel sohbet, görev planlama ve belge modlarında soru, sınırlı sohbet geçmişi ve seçilen dosya
+kesitleri Groq'a aktarılır. Kodlama ve matematik modlarında bu içerik, uygulama aynı bilgisayarda
+çalışıyorsa yerel Ollama'ya gönderilir. Web araştırması ek hizmetlere veri aktarımı
 içerebilir. Sağlayıcıların saklama politikaları ayrıca geçerlidir.
 Dosya bağlamını kaldırmak eski sohbet mesajlarında bulunan alıntıları silmez.
 Tüm oturum içeriğini temizleme yüklenen dosyaları ve sohbeti kaldırır.
@@ -260,3 +261,42 @@ Başlangıç sürümü: `1f5689ef1ce30ee58537de94fdcf89c3302c06d7`.
 Değişiklikler geliştirme dalında tutulur; canlı uygulamaya otomatik geçiş
 öngörülmez. Birleştirme sonrası sorun olursa PR commit'i revert edilerek
 önceki sürüme dönülebilir. Secrets değerlerini değiştirmeye gerek yoktur.
+
+
+## Yerel yapay zekâ: Ollama (isteğe bağlı)
+
+Kodlama ve Matematik Öğretmeni modları isteğe bağlı yerel Ollama sağlayıcısını kullanır.
+Genel yardımcı, görev planlama ve belge modları mevcut Groq sağlayıcısını kullanmaya devam eder.
+app.py içindeki yönlendirme kodlama ve matematik modlarını doğrudan Ollama'ya gönderir;
+diğer modlar mevcut kota denetimli Groq akışında kalır. Yerel sağlayıcı etkin değilse
+kodlama/matematik modları açıkça yapılandırma uyarısı verir. Bu modlarda internet
+araştırması devre dışıdır; Groq'a otomatik geçiş veya ücretli yedek çağrı yapılmaz.
+
+Windows bilgisayarında Ollama kurulduktan sonra PowerShell'de:
+
+```powershell
+ollama pull qwen2.5-coder:3b
+ollama pull qwen3:4b
+```
+
+Nesil AI uygulamasını aynı bilgisayarda yerel olarak çalıştırırken ortam değişkenleri:
+
+```powershell
+$env:NESIL_LOCAL_MODEL_ENABLED="true"
+$env:OLLAMA_BASE_URL="http://127.0.0.1:11434"
+$env:NESIL_OLLAMA_CODING_MODEL="qwen2.5-coder:3b"
+$env:NESIL_OLLAMA_MATH_MODEL="qwen3:4b"
+python -m streamlit run app.py
+```
+
+Ollama HTTP servisi varsayılan olarak 127.0.0.1:11434 adresinde dinler.
+**Önemli dağıtım sınırı:** Streamlit Cloud üzerindeki uygulamanın 127.0.0.1 adresi
+kullanıcının ev bilgisayarı değil, bulut sunucusudur. Kişisel bilgisayardaki Ollama'yı
+kullanmak için Nesil AI uygulaması da o bilgisayarda çalıştırılmalıdır. Uzak erişim
+için güvenli, kimlik doğrulamalı ağ geçidi ayrıca tasarlanmalı; Ollama portu internete
+doğrudan açılmamalıdır.
+
+Mevcut bilgisayardaki 8 GB RAM ve 4 GB ekran kartı belleği nedeniyle bu modellerin
+yanıt süresi yavaş olabilir. Önce 3B kodlama modelini deneyin; iki modeli aynı anda
+yüklemeyin. Matematik modeli ayrıca indirildiğinde kullanılabilir. Model indirme ve
+çalıştırma gerçek bilgisayarda ayrıca doğrulanmalıdır.
