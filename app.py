@@ -87,8 +87,6 @@ def offline_public_data_answer(prompt, web_enabled=False):
     population_question = any(x in q for x in ("nüfus", "nufus", "population")) and any(x in q for x in ("türkiye", "turkiye", "turkey"))
     if not population_question:
         return ""
-    if not web_enabled:
-        return "İnternet araması kapalı. Güncel nüfus verisini doğrulamak için aramayı açın. Resmî TÜİK kaynakları: https://www.tuik.gov.tr/ ve https://nip.tuik.gov.tr/"
     return (
         "## TÜİK'in en güncel yıllık ADNKS nüfus verisi\n\n"
         "| Gösterge | Veri |\n|---|---|\n"
@@ -138,7 +136,7 @@ def ask_model(prompt, mode, history, file_context="", web_enabled=False):
         if exc.code==429:
             fallback = offline_public_data_answer(prompt, web_enabled)
             if fallback:
-                return fallback + "\n\nNot: Groq kullanım sınırı dolduğu için bu yanıt yapay zekâ tarafından üretilmedi; yalnızca uygulamadaki doğrulanmış sabit kaynak bilgisinden oluşturuldu."
+                return fallback + "\n\nNot: Groq kullanım sınırı dolduğu için bu yanıt yapay zekâ tarafından üretilmedi; önceden tanımlanmış TÜİK kaynak bilgisine dayalı yedek yanıttır; canlı web doğrulaması yapılmamıştır."
             return "Groq kullanım sınırına ulaşıldı. Bu soru için doğrulanmış yerel bir yedek yanıt bulunamadı. Lütfen daha sonra tekrar deneyin."
         return f"Model sağlayıcısı hata döndürdü (HTTP {exc.code}): {details[:350]}"
     except Exception as exc:
