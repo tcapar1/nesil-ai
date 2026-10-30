@@ -11,6 +11,7 @@ from tools_ui import email_tools, voice_tools
 from python_runner import runner_tools
 from supabase_store import create_usage_store
 from access_control import require_access
+from supabase_auth import create_auth_client, SupabaseAuthError
 from app_service import call_with_limits
 from local_model import ask_local_model
 
