@@ -94,7 +94,7 @@ def offline_public_data_answer(prompt, web_enabled=False):
         "| Veri yılı / referans tarihi | 2025 / 31 Aralık 2025 |\n"
         "| Yayın tarihi | 9 Şubat 2026 |\n\n"
         "**Resmî kaynak:** [TÜİK — 2025 ADNKS sonuçları](https://veriportali.tuik.gov.tr/tr/press/53899)\n\n"
-        "Bu, Groq kullanım sınırı nedeniyle sunulan yedek bilgidir; canlı web araması yapılmış değildir. 2026'ya ait farklı göstergeler yıllık ADNKS verisiyle karıştırılmamalıdır."
+        "Bu yanıt uygulamanın önceden tanımlanmış TÜİK kaynak kaydına dayanır; canlı web araması yapılmamıştır. 2026'ya ait farklı göstergeler yıllık ADNKS verisiyle karıştırılmamalıdır."
     )
 
 def ask_model(prompt, mode, history, file_context="", web_enabled=False):
@@ -211,16 +211,27 @@ if prompt:
     prior=st.session_state.messages.copy()
     last_user = next((m.get("content") for m in reversed(prior) if m.get("role") == "user"), None)
     last_assistant = next((m.get("content") for m in reversed(prior) if m.get("role") == "assistant"), None)
-    repeated = (last_user == prompt and bool(last_assistant))
-    if repeated:
-        st.info("Bu soruyu zaten yanıtladım. Aynı cevabı tekrar eklemedim; yeni bir soru yazabilirsiniz.")
+    trusted_population_answer = offline_public_data_answer(prompt, web_enabled)
+    already_correct = (
+        last_user == prompt and bool(last_assistant) and
+        "86.092.168" in last_assistant and
+        "veriportali.tuik.gov.tr/tr/press/53899" in last_assistant
+    )
+    if last_user == prompt and already_correct:
+        st.info("Bu sorunun TÜİK kaynaklı cevabı zaten mevcut.")
     else:
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Yanıt hazırlanıyor…"):
-                answer=ask_model(prompt,mode,prior,st.session_state.file_context,web_enabled)
+            if trusted_population_answer:
+                answer = trusted_population_answer
+            else:
+                with st.spinner("Yanıt hazırlanıyor…"):
+                    answer=ask_model(prompt,mode,prior,st.session_state.file_context,web_enabled)
             st.markdown(answer)
-        st.session_state.messages.append({"role":"user","content":prompt})
-        st.session_state.messages.append({"role":"assistant","content":answer})
+        if last_user == prompt and prior and prior[-1].get("role") == "assistant":
+            st.session_state.messages[-1] = {"role":"assistant","content":answer}
+        else:
+            st.session_state.messages.append({"role":"user","content":prompt})
+            st.session_state.messages.append({"role":"assistant","content":answer})
 st.caption("Nesil AI · Ücretsiz deneme sürümü. Yanıtları ve internet kaynaklarını önemli kararlar öncesinde doğrulayın.")
