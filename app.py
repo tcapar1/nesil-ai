@@ -1,12 +1,33 @@
 """Nesil AI: session-only Streamlit chat."""
 import time
+import json
 import streamlit as st
 from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, extract_file, select_context
 from model_client import ask_model, read_api_key
+from research import research_caption
+
+
+def show_research(message):
+    record = message.get("research")
+    if record is None:
+        st.caption("Araştırma aracı istendi; kaynakları kontrol edin." if message.get("research_requested") else "Canlı internet araştırması yapılmadı.")
+        return
+    if record.get("status") == "no_sources":
+        st.warning(research_caption(record))
+    else:
+        st.caption(research_caption(record))
+    if record.get("requested"):
+        with st.expander("Kaynak kaydı"):
+            if record.get("question"):
+                st.write("Araştırma sorusu: " + record["question"])
+            st.caption("Yanıtın kaydedildiği zaman (UTC): " + record["recorded_at"])
+            st.caption("Kaynak sayfalarına erişim, yayın tarihi ve veri dönemi bu kayıt tarafından doğrulanmadı.")
+            for source in record.get("sources", []):
+                st.link_button(source["title"], source["url"])
 
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
 defaults = {"messages": [], "documents": [], "file_names": [], "retry_at": 0,
-            "last_request_at": 0, "pending_prompt": "", "last_error": "", "usage": {}, "upload_generation": 0}
+            "last_request_at": 0, "pending_prompt": "", "last_error": "", "usage": {}, "upload_generation": 0, "note_generation": 0}
 for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
@@ -15,6 +36,7 @@ with st.sidebar:
     st.title("🤖 Nesil AI")
     st.caption("Türkçe yapay zekâ yardımcısı")
     mode = st.selectbox("Çalışma biçimi", ["Genel yardımcı", "Görev planlama", "Kodlama yardımcısı", "Belge ve rapor yardımcısı"])
+    note = st.text_area("Sohbet notu", max_chars=2000, key=f"note_{st.session_state.note_generation}", help="Amaç, tercihler ve önemli kararlar. Her soruda modele gönderilir; sohbet temizlenince silinir. Kalıcı hafıza değildir.")
     st.divider()
     st.subheader("📎 Dosya analizi")
     st.caption("En fazla 5 dosya, dosya başına 10 MB, toplam 20 MB. Belgelerin sınırlı metin kesitleri analiz edilir.")
@@ -48,16 +70,21 @@ with st.sidebar:
         st.session_state.messages = []
         st.session_state.pending_prompt = ""
         st.session_state.last_error = ""
+        st.session_state.note_generation += 1
         st.rerun()
     if st.button("Tüm oturum içeriğini temizle", use_container_width=True):
         # Rate-limit timers survive content deletion.
         for key in ("messages", "documents", "file_names", "pending_prompt", "last_error", "usage"):
             st.session_state.pop(key, None)
         st.session_state.upload_generation += 1
+        st.session_state.note_generation += 1
         st.rerun()
     if st.session_state.messages:
         transcript = "\n\n".join(("KULLANICI: " if m["role"] == "user" else "NESİL AI: ") + m["content"] for m in st.session_state.messages)
         st.download_button("Sohbeti TXT olarak indir", transcript, file_name="nesil_ai_sohbet.txt", mime="text/plain", use_container_width=True)
+        records = [m["research"] for m in st.session_state.messages if (m.get("research") or {}).get("requested")]
+        if records:
+            st.download_button("Kaynak kayıtlarını indir", json.dumps(records, ensure_ascii=False, indent=2), file_name="nesil_ai_kaynaklar.json", mime="application/json")
     st.caption("Bu sürüm komut çalıştırmaz, e-posta göndermez veya bilgisayarı kontrol etmez.")
 
 st.title("🤖 Nesil AI")
@@ -70,7 +97,7 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if message["role"] == "assistant":
-            st.caption("Araştırma aracı istendi; kaynakları kontrol edin." if message.get("research_requested") else "Canlı internet araştırması yapılmadı.")
+            show_research(message)
 wait = max(0, int(st.session_state.retry_at - time.time() + 0.999))
 if wait:
     st.warning(f"Sağlayıcı bekleme süresi: yaklaşık {wait} saniye. Süre dolunca yeniden deneyin.")
@@ -101,11 +128,11 @@ if prompt:
         with st.chat_message("assistant"):
             label = "Kaynaklı araştırma yanıtı hazırlanıyor…" if web_enabled else "Yanıt hazırlanıyor…"
             with st.spinner(label):
-                result = ask_model(prompt, mode, st.session_state.messages, context, web_enabled, api_key=read_api_key(st.secrets))
+                result = ask_model(prompt, mode, st.session_state.messages, context, web_enabled, api_key=read_api_key(st.secrets), note=note)
             st.markdown(result.text)
-            st.caption("Araştırma aracı istendi; kaynakları kontrol edin." if web_enabled else "Canlı internet araştırması yapılmadı.")
+            show_research({"research": result.research, "research_requested": web_enabled})
         if result.ok:
-            st.session_state.messages.extend([{"role": "user", "content": prompt}, {"role": "assistant", "content": result.text, "research_requested": web_enabled}])
+            st.session_state.messages.extend([{"role": "user", "content": prompt}, {"role": "assistant", "content": result.text, "research_requested": web_enabled, "research": result.research}])
             # Bound server memory. Provider receives a smaller whole-message window.
             st.session_state.messages = st.session_state.messages[-100:]
             st.session_state.pending_prompt = ""

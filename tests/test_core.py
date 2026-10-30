@@ -78,7 +78,7 @@ class CoreTests(unittest.TestCase):
             self.assertFalse(ask_model("x", "x", [], api_key="fake", opener=lambda *a, **k: io.BytesIO(raw)).ok)
 
     def test_whole_recent_messages_and_missing_context_notice(self):
-        history = [{"role": "user", "content": "x" * 15000}, {"role": "assistant", "content": "recent"}]
+        history = [{"role": "user", "content": "x" * 15000}, {"role": "user", "content": "recent"}]
         result = build_messages("next", "Genel", history)
         self.assertEqual(result[1]["content"], "recent")
         self.assertIn("eski mesajların", result[0]["content"])

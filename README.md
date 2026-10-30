@@ -41,6 +41,18 @@ içerebilir. Sağlayıcıların saklama politikaları ayrıca geçerlidir.
 Dosya bağlamını kaldırmak eski sohbet mesajlarında bulunan alıntıları silmez.
 Tüm oturum içeriğini temizleme yüklenen dosyaları ve sohbeti kaldırır.
 
+## Sohbet bağlamı
+
+Yan paneldeki 2.000 karakterlik **Sohbet notu** amaç, tercihler ve önemli
+kararlar için kullanıcı tarafından yazılır. Ek bir özet/model isteği yapılmaz.
+Not her soruda kullanıcı bağlamı olarak gönderilir; sistem talimatı değildir.
+Sohbet temizlenince not da silinir. Oturumlar arasında kalıcı hafıza yoktur.
+
+Geçmişteki soru/cevap turları bölünmeden seçilir. Önce yakın konuşma için
+yer ayrılır, ardından soruyla sözcük eşleşmesi olan eski turlar seçilir.
+Bu yöntem anlamsal hafıza değildir; bulunamayan eski bilgileri hatırlama
+garantisi vermez. Bağlamdan çıkarılan mesajlar olduğunda modele sınır bildirilir.
+
 ## Araştırma ve kota
 
 Araştırma yalnızca kullanıcı seçeneği açıkken istenir. `browser_search`
@@ -48,6 +60,16 @@ sağlayıcı tarafında çalışır; bu sürüm aramanın başarı kaydını ba�
 doğrulamaz. Kaynak URL'lerini kontrol edin. Sabit nüfus yanıtı ve sahte
 güncellik iddiası kaldırılmıştır. Kota dolduğunda doğrulanmamış yedek bilgi
 üretilmez; soru tekrar denemek için korunur.
+
+Yanıtta bildirilen en fazla 12 farklı HTTP(S) bağlantısı ayrıca kaynak
+kaydında gösterilir ve JSON olarak indirilebilir. Kayıt zamanı, **yanıtın
+kaydedildiği zamandır**; sayfaya erişim zamanı değildir. Yayın tarihi,
+veri dönemi ve erişim zamanı bağımsız doğrulanmadığından boş bırakılır.
+Bağlantı bulunamazsa araştırmanın doğrulanmış sayılmaması gerektiği belirtilir.
+Bağlantılar sırf yanıtta yer aldıkları için güvenilir veya güncel kabul edilmez.
+Kaynak kaydı sayfaları indirmez; başlıklar modelin kullandığı etiketlerdir.
+URL filtresi bazı yerel/özel adresleri eler, DNS doğrulaması yapmaz ve bir
+sunucu tarafı URL getirme güvenlik mekanizması olarak kullanılmamalıdır.
 
 429 yanıtında `Retry-After` okunur (yoksa 60 saniye); aynı oturumda süre
 dolmadan istek gönderilmez. Normal gönderimler arasında 5 saniye vardır.

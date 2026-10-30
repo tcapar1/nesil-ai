@@ -8,8 +8,10 @@ yönlendirmesi kaldırılır. Mock testler gerçek API kullanmaz.
 
 ## 2. Araştırma ve bağlam
 
-Kaynak URL/yayın tarihi/veri dönemi/erişim zamanı ayrı kayıtlar olarak
-tutulmalı; araştırma başarısı araç kaydından doğrulanmalı. Kaynak çelişkileri,
+Kaynak URL'leri ayrı kayıtta tutulur ve JSON indirme sunulur. Bağımsız
+doğrulanmayan yayın tarihi/veri dönemi/erişim zamanı alanları boş bırakılır.
+Kullanıcı düzenlemeli sohbet notu ve ilgili eski turları seçme eklenmiştir.
+Araştırma başarısı araç kaydından ayrıca doğrulanmalı. Kaynak çelişkileri,
 prompt injection ve uzun konuşma Türkçe değerlendirme setiyle ölçülmeli.
 Kesin token sayımı, ilgili kesitlerde kaynak konumu ve kullanıcı onaylı
 hafıza tasarlanmalı. Akışlı yanıt ve gerçek mobil görsel test eklenmeli.
