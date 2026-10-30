@@ -65,13 +65,43 @@ güncellik iddiası kaldırılmıştır. Kota dolduğunda doğrulanmamış yedek
 
 Yanıtta bildirilen en fazla 12 farklı HTTP(S) bağlantısı ayrıca kaynak
 kaydında gösterilir ve JSON olarak indirilebilir. Kayıt zamanı, **yanıtın
-kaydedildiği zamandır**; sayfaya erişim zamanı değildir. Yayın tarihi,
-veri dönemi ve erişim zamanı bağımsız doğrulanmadığından boş bırakılır.
+kaydedildiği zamandır**; sayfaya erişim zamanı değildir. Kaynak kontrolü
+yapılmadıkça yayın tarihi, veri dönemi ve erişim zamanı boş bırakılır.
 Bağlantı bulunamazsa araştırmanın doğrulanmış sayılmaması gerektiği belirtilir.
 Bağlantılar sırf yanıtta yer aldıkları için güvenilir veya güncel kabul edilmez.
-Kaynak kaydı sayfaları indirmez; başlıklar modelin kullandığı etiketlerdir.
-URL filtresi bazı yerel/özel adresleri eler, DNS doğrulaması yapmaz ve bir
+Bağlantı başlıkları modelin kullandığı etiketlerdir; sayfa başlığı değildir.
+
+**Kaynak sayfalarını kontrol et** düğmesi, ilk üç bağlantıyı isteğe bağlı
+olarak açmayı dener. Her oturumda kontroller arasında 60 saniye vardır;
+sayfalar normal ekran yenilenmelerinde tekrar indirilmez. Kaynak URL'si
+ilgili siteye gönderilir; API anahtarı, kullanıcı çerezi veya sohbet
+geçmişi gönderilmez. Ek model çağrısı yapılmaz.
+
+Yalnızca HTTPS/443, Türkiye `.gov.tr` adresleri ve `source_reader.py`
+içindeki sınırlı birincil kaynak listesi desteklenir. Tüm DNS cevapları
+genel adres olmalıdır; bağlantı seçilen sayısal adrese sabitlenir, TLS
+alan adı ve sertifika kontrolü korunur. Proxy/çerez/kimlik bilgisi eklenmez.
+Yönlendirmeler izlenmez. Yalnızca HTML/düz metin, sıkıştırılmamış en fazla
+512 KB yanıt desteklenir. Soket zaman aşımı 3 saniye, gövde okuma bütçesi
+5 saniyedir. DNS ve başlık okuması dahil katı bir toplam süre garantisi
+yoktur; işletim sistemi ve ağ koşulları süreyi etkileyebilir. Bu kontroller
+ağ seviyesinde izolasyonun veya bağımsız güvenlik denetiminin yerini tutmaz.
+
+Metin alınırsa gerçek erişim zamanı, sayfa başlığı ve sınırlı kesit kayda
+eklenir. Yayın tarihi yalnızca açık yayın metadata alanlarından alınır;
+gövde içindeki tarihlerden tahmin edilmez. Veri dönemi yalnızca açık
+temporal metadata varsa alınır. Çelişen yayın tarihleri olduğunda tarih
+seçilmez. Alanlar sayfanın iddialarıdır; bağımsız gerçeklik doğrulaması
+değildir. Sayfa metni düz metin gösterilir, modele otomatik gönderilmez.
+`verified` alanı false kalır: sayfaya erişim, yanıttaki iddiayı veya en
+güncel veriyi doğrulamaz. JavaScript, PDF/OCR ve JSON-LD tarihleri bu
+okuyucuda işlenmez. Bot engeli ve yönlendirme olan sayfalar okunamayabilir.
+
+`research.public_url` yalnızca bağlantı kaydı filtresidir; tek başına
 sunucu tarafı URL getirme güvenlik mekanizması olarak kullanılmamalıdır.
+
+Teknik dayanak: [OWASP SSRF önleme](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html),
+[Python TLS](https://docs.python.org/3/library/ssl.html).
 
 429 yanıtında `Retry-After` okunur (yoksa 60 saniye); aynı oturumda süre
 dolmadan istek gönderilmez. Normal gönderimler arasında 5 saniye vardır.

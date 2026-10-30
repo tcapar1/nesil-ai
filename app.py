@@ -4,27 +4,9 @@ import json
 import streamlit as st
 from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, extract_file, select_context
 from model_client import ask_model, read_api_key
-from research import research_caption
+from research_ui import show_research
 from tools_ui import email_tools, voice_tools
 
-
-def show_research(message):
-    record = message.get("research")
-    if record is None:
-        st.caption("Araştırma aracı istendi; kaynakları kontrol edin." if message.get("research_requested") else "Canlı internet araştırması yapılmadı.")
-        return
-    if record.get("status") == "no_sources":
-        st.warning(research_caption(record))
-    else:
-        st.caption(research_caption(record))
-    if record.get("requested"):
-        with st.expander("Kaynak kaydı"):
-            if record.get("question"):
-                st.write("Araştırma sorusu: " + record["question"])
-            st.caption("Yanıtın kaydedildiği zaman (UTC): " + record["recorded_at"])
-            st.caption("Kaynak sayfalarına erişim, yayın tarihi ve veri dönemi bu kayıt tarafından doğrulanmadı.")
-            for source in record.get("sources", []):
-                st.link_button(source["title"], source["url"])
 
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
 defaults = {"messages": [], "documents": [], "file_names": [], "retry_at": 0,
@@ -103,11 +85,11 @@ if st.session_state.file_names:
     st.info("Dosya kesitleri hazır: " + ", ".join(st.session_state.file_names))
 if not st.session_state.messages:
     st.markdown("**Örnek görevler**\n- Bir iş sürecini adım adım planla.\n- Yüklediğim belgenin önemli noktalarını açıkla.\n- Araştırmayı açarak güncel bilgileri kaynaklarıyla karşılaştır.")
-for message in st.session_state.messages:
+for message_index, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if message["role"] == "assistant":
-            show_research(message)
+            show_research(st, message, message_index)
 voice_tools(st)
 wait = max(0, int(st.session_state.retry_at - time.time() + 0.999))
 if wait:
@@ -141,7 +123,7 @@ if prompt:
             with st.spinner(label):
                 result = ask_model(prompt, mode, st.session_state.messages, context, web_enabled, api_key=read_api_key(st.secrets), note=note)
             st.markdown(result.text)
-            show_research({"research": result.research, "research_requested": web_enabled})
+            show_research(st, {"research": result.research, "research_requested": web_enabled}, len(st.session_state.messages))
         if result.ok:
             st.session_state.messages.extend([{"role": "user", "content": prompt}, {"role": "assistant", "content": result.text, "research_requested": web_enabled, "research": result.research}])
             # Bound server memory. Provider receives a smaller whole-message window.

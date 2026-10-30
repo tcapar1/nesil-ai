@@ -141,6 +141,50 @@ class AppTests(unittest.TestCase):
         self.assertFalse(app.exception)
         self.assertEqual(len(app.get("iframe")), 1)
 
+    def test_page_checks_are_opt_in_bounded_and_throttled(self):
+        ledger = research_record(" ".join(f"https://data.tuik.gov.tr/page{i}" for i in range(4)), True, "now")
+        details = {"content_status": "retrieved", "verified": False, "accessed_at": "2026-10-30T12:00:00Z", "source_title": "Test bülteni", "published_at": "2026-02-09", "data_period": "2025", "excerpt": "Sentetik sayfa metni", "date_conflict": False}
+        with patch("research_ui.check_source", return_value=details) as checker, patch("model_client.ask_model") as provider:
+            app = self.start()
+            app.session_state["messages"] = [{"role": "assistant", "content": "Test", "research": ledger}]
+            app.run()
+            checker.assert_not_called()
+            next(b for b in app.button if b.label == "Kaynak sayfalarını kontrol et").click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(checker.call_count, 3)
+            sources = app.session_state["messages"][0]["research"]["sources"]
+            self.assertEqual(sources[0]["content_status"], "retrieved")
+            self.assertFalse(sources[0]["verified"])
+            self.assertNotIn("content_status", sources[3])
+            self.assertTrue(any("iddiaların doğruluğu" in w.value for w in app.caption))
+            next(b for b in app.button if b.label == "Kaynak sayfalarını kontrol et").click().run()
+            self.assertEqual(checker.call_count, 3)
+            cooldown = app.session_state["source_retry_at"]
+            next(b for b in app.button if b.label == "Tüm oturum içeriğini temizle").click().run()
+            self.assertEqual(app.session_state["source_retry_at"], cooldown)
+            provider.assert_not_called()
+
+    def test_page_check_error_does_not_break_chat(self):
+        ledger = research_record("https://data.tuik.gov.tr/page", True, "now")
+        with patch("research_ui.check_source", side_effect=RuntimeError("secret details")):
+            app = self.start()
+            app.session_state["messages"] = [{"role": "assistant", "content": "Test", "research": ledger}]
+            app.run()
+            next(b for b in app.button if b.label == "Kaynak sayfalarını kontrol et").click().run()
+            self.assertFalse(app.exception)
+            source = app.session_state["messages"][0]["research"]["sources"][0]
+            self.assertEqual(source["content_status"], "unavailable")
+            self.assertNotIn("secret", str(source))
+
+    def test_multiple_source_records_have_distinct_buttons(self):
+        from copy import deepcopy
+        ledger = research_record("https://data.tuik.gov.tr/page", True, "now")
+        app = self.start()
+        app.session_state["messages"] = [{"role": "assistant", "content": "Test", "research": deepcopy(ledger)} for _ in range(2)]
+        app.run()
+        self.assertFalse(app.exception)
+        self.assertEqual(len([b for b in app.button if b.label == "Kaynak sayfalarını kontrol et"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
