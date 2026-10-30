@@ -1,6 +1,6 @@
 # Nesil AI
 
-Türkçe öncelikli Streamlit asistanı. Bu sürüm sohbet, dört çalışma modu,
+Türkçe öncelikli Streamlit asistanı. Bu sürüm sohbet, beş çalışma modu,
 belgelerden sınırlı metin çıkarma, isteğe bağlı Groq web araştırması ve TXT
 sohbet indirme sunar. Ayrıca gönderilmeyen e-posta taslağı indirme ve
 tarayıcıdaki yerel seslerle son yanıtı dinleme araçları vardır. Bilgisayar
