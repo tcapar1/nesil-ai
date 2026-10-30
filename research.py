@@ -1,5 +1,6 @@
 """Local source ledger. Extracting a citation never verifies its contents."""
 import ipaddress
+import json
 import re
 from urllib.parse import urlsplit, urlunsplit
 
@@ -66,4 +67,73 @@ def research_caption(record):
         return "Araştırma istendi; yanıtta kaynak bağlantısı bulunamadı. Güncel bilgi doğrulanmış sayılmamalı."
     if any(source.get("content_status") == "retrieved" for source in record.get("sources", [])):
         return "Bazı kaynak sayfalarından metin alındı. Yanıttaki iddiaların doğruluğu ve verinin en güncel olduğu ayrıca doğrulanmadı."
-    return "Araştırma istendi; aşağıdaki bağlantılar yanıttan çıkarıldı. Sayfa içerikleri bağımsız doğrulanmadı."
+    return "Araştırma istendi; aşağıdaki bağlantılar yanıttan veya sağlayıcı kaydından alındı. Sayfa içerikleri bağımsız doğrulanmadı."
+
+
+def enrich_sources(record, executed_tools, annotations):
+    """Consume explicit URL metadata only. Never guess citation IDs from array order.
+
+    Groq responses may omit tool metadata. Unknown schemas leave citations unresolved.
+    Provider snippets are recorded as evidence, never as independently verified facts.
+    """
+    by_url = {s["url"]: s for s in record["sources"]}
+    remaining = 500
+
+    def walk(node, depth=0):
+        nonlocal remaining
+        if remaining <= 0 or depth > 8:
+            return
+        remaining -= 1
+        if isinstance(node, str):
+            if len(node) <= 100000:
+                try:
+                    walk(json.loads(node), depth + 1)
+                except (ValueError, TypeError):
+                    pass
+            return
+        if isinstance(node, list):
+            for item in node[:100]:
+                walk(item, depth + 1)
+        elif isinstance(node, dict):
+            url = public_url(node.get("url") or node.get("uri"))
+            if url and (url in by_url or len(by_url) < 12):
+                source = by_url.setdefault(url, {"title": str(node.get("title") or "Kaynak")[:300], "url": url,
+                    "verified": False, "published_at": None, "data_period": None, "accessed_at": None})
+                source["origin"] = "provider_metadata"
+                for key in ("citation_id", "reference_id", "id"):
+                    value = node.get(key)
+                    if isinstance(value, (str, int)) and re.fullmatch(r"[\w-]{1,80}", str(value)):
+                        source.setdefault("citation_ids", [])
+                        if str(value) not in source["citation_ids"]:
+                            source["citation_ids"].append(str(value))
+                excerpt = node.get("snippet") or node.get("text")
+                if isinstance(excerpt, str):
+                    source["provider_excerpt"] = excerpt[:2000]
+            for value in node.values():
+                if isinstance(value, (list, dict, str)):
+                    walk(value, depth + 1)
+    walk(executed_tools)
+    walk(annotations)
+    record["sources"] = list(by_url.values())
+    record["status"] = "links_reported" if by_url else "no_sources"
+    record["tool_metadata_present"] = bool(executed_tools)
+
+
+def render_citations(answer, record):
+    mapping = {}
+    for source in record["sources"]:
+        for citation_id in source.get("citation_ids", []):
+            # Ambiguous IDs must not point to an arbitrary source.
+            mapping[citation_id] = source["url"] if citation_id not in mapping else None
+    unresolved = 0
+
+    def replace(match):
+        nonlocal unresolved
+        url = mapping.get(match.group(1))
+        if url:
+            return f"[Kaynak]({url})"
+        unresolved += 1
+        return " (kaynak bağlantısı eşleştirilemedi)"
+    answer = re.sub(r"[【〖]([^†】〗]+)†[^】〗]*[】〗]", replace, answer)
+    record["unresolved_citations"] = unresolved
+    return answer

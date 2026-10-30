@@ -4,7 +4,7 @@ import re
 MAX_NOTE = 2000
 
 
-def select_history(history, prompt, budget):
+def select_history(history, prompt, budget, measure=len):
     """Keep a recent tail and retrieve relevant old user/assistant groups.
 
     Original text is preserved, in chronological order. No generated summary or
@@ -20,7 +20,7 @@ def select_history(history, prompt, budget):
             groups.append([])
         groups[-1].append({"role": message["role"], "content": message["content"]})
     selected, used = set(), 0
-    costs = [sum(len(m["content"]) for m in group) for group in groups]
+    costs = [sum(measure(m["content"]) for m in group) for group in groups]
     # First reserve up to 65% for complete recent turns; always try the latest.
     for index in reversed(range(len(groups))):
         cost = costs[index]

@@ -1,15 +1,26 @@
 """Nesil AI: session-only Streamlit chat."""
 import time
 import json
+import sqlite3
 import streamlit as st
-from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, extract_file, select_context
+from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, select_context
+from document_worker import extract_bounded
 from model_client import ask_model, read_api_key
 from research_ui import show_research
 from tools_ui import email_tools, voice_tools
 from python_runner import runner_tools
+from usage_limits import UsageStore
+from access_control import require_access
+from app_service import call_with_limits
 
 
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
+try:
+    usage_store = UsageStore()
+    principal = require_access(st, usage_store)
+except (ValueError, OSError, sqlite3.Error):
+    st.error("Giriş veya kullanım kaydı ayarları geçersiz. Yönetici yapılandırmayı kontrol etmeli.")
+    st.stop()
 defaults = {"messages": [], "documents": [], "file_names": [], "retry_at": 0,
             "last_request_at": 0, "pending_prompt": "", "last_error": "", "usage": {}, "upload_generation": 0, "note_generation": 0}
 for key, value in defaults.items():
@@ -19,19 +30,24 @@ for key, value in defaults.items():
 with st.sidebar:
     st.title("🤖 Nesil AI")
     st.caption("Türkçe yapay zekâ yardımcısı")
+    st.caption("Ücretsiz kota için sınırlandırılmış kullanım. Groq hesabı Free planda olmalıdır. Ortak kota dolunca beklenir; ücretli yedek servis kullanılmaz.")
+    if principal != "public" and st.button("Çıkış yap", use_container_width=True):
+        st.session_state.clear()
+        st.rerun()
     mode = st.selectbox("Çalışma biçimi", ["Genel yardımcı", "Görev planlama", "Kodlama yardımcısı", "Belge ve rapor yardımcısı"])
     note = st.text_area("Sohbet notu", max_chars=2000, key=f"note_{st.session_state.note_generation}", help="Amaç, tercihler ve önemli kararlar. Her soruda modele gönderilir; sohbet temizlenince silinir. Kalıcı hafıza değildir.")
     st.divider()
     st.subheader("📎 Dosya analizi")
     st.caption("En fazla 5 dosya, dosya başına 10 MB, toplam 20 MB. Belgelerin sınırlı metin kesitleri analiz edilir.")
     uploads = st.file_uploader("Dosya seçin", type=list(ALLOWED), accept_multiple_files=True, key=f"uploads_{st.session_state.upload_generation}")
+    ocr_enabled = st.checkbox("Taranmış PDF için yerel OCR kullan", value=False, help="Sunucuda OCR paketleri ve Tesseract gerekir. İlk 20 taranmış sayfaya kadar denenir; sonuçları kontrol edin.")
     st.caption("Soru, sohbet bağlamı ve ilgili dosya kesitleri yanıt için Groq'a gönderilir. Uygulama bunları kalıcı bir veritabanına kaydetmez. Hassas verileri yüklemeyin.")
     if st.button("Seçilen dosyaları oku", disabled=not uploads, use_container_width=True):
         if len(uploads) > MAX_FILES or sum(up.size for up in uploads) > MAX_TOTAL_BYTES:
             st.error("En fazla 5 dosya ve toplam 20 MB yükleyebilirsiniz. Önceki dosya bağlamı korunuyor.")
         else:
             with st.spinner("Dosyalar okunuyor…"):
-                results = [extract_file(up) for up in uploads]
+                results = [extract_bounded(up, ocr=ocr_enabled) for up in uploads]
             st.session_state.documents = results
             st.session_state.file_names = [r.name for r in results if r.text]
             count = sum(bool(r.text) for r in results)
@@ -48,13 +64,14 @@ with st.sidebar:
         st.rerun()
     st.divider()
     web_enabled = st.checkbox("İnternette araştır", value=False)
-    st.caption("Açıkken Groq browser_search aracı istenir. Bu sürüm arama yürütme kaydını ayrıca doğrulamaz; cevap içindeki doğrudan kaynakları kontrol edin.")
+    st.caption("Güncel sorularda araştırma kullanılır; selamlaşmalarda arama zorlanmaz. Kaynak bağlantıları ayrıca gösterilir. Bağlantı bulunamazsa kesin araştırma yanıtı sunulmaz.")
     email_tools(st)
     st.divider()
     if st.button("Sohbeti temizle", use_container_width=True):
         st.session_state.messages = []
         st.session_state.pending_prompt = ""
         st.session_state.last_error = ""
+        st.session_state.pop("source_review", None)
         st.session_state.note_generation += 1
         st.session_state.draft_generation = st.session_state.get("draft_generation", 0) + 1
         st.session_state.pop("prepared_draft", None)
@@ -66,6 +83,7 @@ with st.sidebar:
         # Rate-limit timers survive content deletion.
         for key in ("messages", "documents", "file_names", "pending_prompt", "last_error", "usage"):
             st.session_state.pop(key, None)
+        st.session_state.pop("source_review", None)
         st.session_state.upload_generation += 1
         st.session_state.note_generation += 1
         st.session_state.draft_generation = st.session_state.get("draft_generation", 0) + 1
@@ -108,7 +126,12 @@ if st.session_state.pending_prompt:
 prompt = st.chat_input("Görevini buraya yaz…")
 if retry and not prompt:
     prompt = st.session_state.pending_prompt
+review = st.session_state.get("source_review")
+if review and review.pop("queued", False) and not prompt:
+    prompt = review["prompt"]
 if prompt:
+    if len(prompt) <= 12000:
+        st.session_state.pending_prompt = prompt
     now = time.time()
     if now < st.session_state.retry_at:
         st.warning("Sağlayıcının bekleme süresi henüz dolmadı. API isteği gönderilmedi.")
@@ -119,22 +142,30 @@ if prompt:
     else:
         st.session_state.last_request_at = now
         st.session_state.pending_prompt = prompt
-        context = select_context(st.session_state.documents, prompt)
+        last_question = next((m["content"] for m in reversed(st.session_state.messages) if m["role"] == "user"), "")
+        retrieval_query = prompt + (" " + last_question if len(prompt.split()) < 6 else "")
+        context = select_context(st.session_state.documents, retrieval_query, limit=10000)
+        reviewing = bool(review and prompt == review["prompt"])
+        if reviewing:
+            context = review["context"]
+        request_web = web_enabled and not reviewing
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
             label = "Kaynaklı araştırma yanıtı hazırlanıyor…" if web_enabled else "Yanıt hazırlanıyor…"
             with st.spinner(label):
-                result = ask_model(prompt, mode, st.session_state.messages, context, web_enabled, api_key=read_api_key(st.secrets), note=note)
+                result = call_with_limits(ask_model, usage_store, principal, prompt, mode, [] if reviewing else st.session_state.messages, context, request_web, api_key=read_api_key(st.secrets), note="" if reviewing else note)
             st.markdown(result.text)
-            show_research(st, {"research": result.research, "research_requested": web_enabled}, len(st.session_state.messages))
+            if result.ok:
+                show_research(st, {"research": result.research, "research_requested": request_web}, len(st.session_state.messages))
         if result.ok:
-            st.session_state.messages.extend([{"role": "user", "content": prompt}, {"role": "assistant", "content": result.text, "research_requested": web_enabled, "research": result.research}])
+            st.session_state.messages.extend([{"role": "user", "content": prompt}, {"role": "assistant", "content": result.text, "research_requested": request_web, "research": result.research}])
             # Bound server memory. Provider receives a smaller whole-message window.
             st.session_state.messages = st.session_state.messages[-100:]
             st.session_state.pending_prompt = ""
             st.session_state.last_error = ""
             st.session_state.usage = result.usage or {}
+            st.session_state.pop("source_review", None)
             st.rerun()
         else:
             st.session_state.last_error = result.text

@@ -1,5 +1,8 @@
 """Headless Streamlit checks; all provider calls are mocked."""
 import unittest
+from pathlib import Path
+import tempfile
+import os
 from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 from model_client import ModelResult
@@ -9,8 +12,15 @@ from email.parser import BytesParser
 
 
 class AppTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        env = patch.dict(os.environ, {"NESIL_USAGE_DB": str(Path(directory.name) / "usage.db"), "NESIL_USERS_JSON": "{}"})
+        env.start()
+        self.addCleanup(env.stop)
+
     def start(self):
-        app = AppTest.from_file("app.py", default_timeout=20).run()
+        app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=20).run()
         self.assertFalse(app.exception)
         return app
 
@@ -18,6 +28,40 @@ class AppTests(unittest.TestCase):
         app = self.start()
         self.assertEqual(len(app.chat_input), 1)
         self.assertEqual(len(app.selectbox[0].options), 4)
+
+    def test_login_gate_and_logout(self):
+        with patch("model_client.ask_model") as provider:
+            app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=20)
+            app.secrets["NESIL_USERS"] = {"ayse": "long-test-access-code"}
+            app.run()
+            self.assertEqual(len(app.chat_input), 0)
+            next(w for w in app.text_input if w.label == "Kullanıcı adı").set_value("ayse")
+            next(w for w in app.text_input if w.label == "Erişim kodu").set_value("wrong")
+            next(b for b in app.button if b.label == "Giriş yap").click().run()
+            self.assertEqual(len(app.chat_input), 0)
+            next(w for w in app.text_input if w.label == "Erişim kodu").set_value("long-test-access-code")
+            next(b for b in app.button if b.label == "Giriş yap").click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(len(app.chat_input), 1)
+            next(b for b in app.button if b.label == "Çıkış yap").click().run()
+            self.assertEqual(len(app.chat_input), 0)
+            provider.assert_not_called()
+
+    def test_source_review_uses_evidence_once(self):
+        ledger = research_record("https://data.tuik.gov.tr/page", True, "now")
+        ledger["question"] = "Önceki soru"
+        ledger["sources"][0].update(content_status="retrieved", accessed_at="now", excerpt="Kanıt: 123")
+        with patch("model_client.ask_model", return_value=ModelResult("Karşılaştırma", ok=True)) as provider:
+            app = self.start()
+            app.session_state["messages"] = [{"role": "assistant", "content": "Eski yanıt", "research": ledger}]
+            app.run()
+            next(b for b in app.button if b.label == "Yanıtı kaynak metniyle karşılaştır").click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(provider.call_count, 1)
+            self.assertIn("Kanıt: 123", provider.call_args.args[3])
+            self.assertFalse(provider.call_args.args[4])
+            app.run()
+            self.assertEqual(provider.call_count, 1)
 
     def test_success_preserves_repeated_turns(self):
         with patch("model_client.ask_model", return_value=ModelResult("Örnek cevap", ok=True)) as provider:

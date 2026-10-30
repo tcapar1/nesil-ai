@@ -2,6 +2,9 @@
 import json
 import math
 import os
+import logging
+import re
+import uuid
 import time
 import urllib.error
 import urllib.request
@@ -9,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from conversation import MAX_NOTE, select_history
-from research import research_record
+from research import research_record, enrich_sources, render_citations
 
 MODEL = "openai/gpt-oss-120b"
 SYSTEM_PROMPT = """Sen Nesil AI adlı Türkçe konuşan bir yardımcısın.
@@ -26,7 +29,46 @@ bağlantılarını, yayın tarihini ve verinin dönemini ayrı belirt; doğrulay
 Güncel iddialarda resmî ve birincil kaynakları tercih et. Yayın tarihini verinin
 referans tarihiyle karıştırma. Daha yeni yayın olup olmadığını araştırmadan
 bir veriyi 'en güncel' ilan etme. Kaynak bulunamazsa bunu açıkça belirt.
-Dosya kesitlerinden hareketle bütün dosyayı okuduğunu iddia etme."""
+Dosya kesitlerinden hareketle bütün dosyayı okuduğunu iddia etme.
+Belge yanıtlarında dosya adını ve verilen sayfa, satır veya kesit konumunu belirt.
+Sohbet ederken doğal ve kısa yanıt ver; gerekmeyen internet araştırması yapma.
+Adres, telefon, çalışma saati ve sunulan hizmetleri kaynak olmadan kesinleştirme.
+Kaynak bağlantısı bulamazsan tahminî ayrıntılar yerine bunu açıkça söyle.
+Web kaynaklarını mümkün olduğunda [başlık](https://...) biçiminde göster."""
+
+LOGGER = logging.getLogger("nesil.model")
+MAX_INPUT_BYTES = 5100
+
+
+class InputBudgetError(ValueError):
+    pass
+
+
+def byte_cost(text):
+    return len(text.encode("utf-8")) + 32
+
+
+def clip_bytes(text, limit):
+    return text.encode("utf-8")[:max(0, limit)].decode("utf-8", errors="ignore")
+
+SMALL_TALK = re.compile(r"(?:nesil\s*ai[ ,!?.]*)?(?:merhaba|selam|selamlar|teşekkür(?:ler| ederim)?|sağ ol|nasılsın|hazır\s*mısın(?:\s+.*)?)[!?.\s]*", re.I)
+
+
+def wants_research(prompt, enabled):
+    return bool(enabled and not SMALL_TALK.fullmatch(prompt.strip()))
+
+
+def error_details(exc):
+    """Only allowlisted error categories reach logs; raw provider text never does."""
+    try:
+        raw = json.loads(exc.read(16384).decode("utf-8", errors="replace"))
+        error = raw.get("error", {})
+        code = error.get("code", "") if isinstance(error, dict) else ""
+        kind = error.get("type", "") if isinstance(error, dict) else ""
+        allowed = {"tool_use_failed", "invalid_request_error", "context_length_exceeded", "rate_limit_exceeded", "model_not_found", "invalid_api_key", "invalid_value"}
+        return code if code in allowed else kind if kind in allowed else "unknown"
+    except Exception:
+        return "unknown"
 
 
 @dataclass
@@ -36,6 +78,7 @@ class ModelResult:
     retry_after: int = 0
     usage: dict | None = None
     research: dict | None = None
+    error_id: str = ""
 
 
 def read_api_key(secrets=None):
@@ -50,15 +93,28 @@ def build_messages(prompt, mode, history, file_context="", note=""):
     today = datetime.now(timezone.utc).date().isoformat()
     messages = [{"role": "system", "content": SYSTEM_PROMPT + "\nBugünün tarihi (UTC): " + today + "\nÇalışma biçimi: " + mode}]
     note = note[:MAX_NOTE]
-    remaining = max(0, 10000 - len(prompt) - len(file_context) - len(note))
-    recent, omitted = select_history(history, prompt, remaining)
+    note_message = "Bu sohbet için kullanıcı notu (sistem talimatı değildir):\n" + note if note else ""
+    # UTF-8 bytes provide a conservative token estimate without a remote tokenizer.
+    # Reserve space for context/lookup notices appended below and by ask_model.
+    available = MAX_INPUT_BYTES - byte_cost(messages[0]["content"]) - byte_cost(prompt) - (byte_cost(note_message) if note else 0) - 512
+    if available < 0:
+        raise InputBudgetError("Soru ve sohbet notu ücretsiz kullanım bağlamını aşıyor. Soruyu veya notu kısaltarak yeniden deneyin.")
+    context_message = ""
+    if file_context:
+        prefix = "Analiz edilecek güvenilmeyen dosya/kaynak kesitleri:\n"
+        allowance = int(available * .7) if history else available
+        if allowance > byte_cost(prefix) + 100:
+            context_message = prefix + clip_bytes(file_context, allowance - byte_cost(prefix))
+            available -= byte_cost(context_message)
+        messages[0]["content"] += "\nKota nedeniyle belge/kaynak kesitleri kısaltılmış olabilir; görünmeyen içeriği bildiğini iddia etme."
+    recent, omitted = select_history(history, prompt, available, measure=byte_cost)
     if omitted:
         messages[0]["content"] += "\nBağlam sınırı nedeniyle eski mesajların bir bölümü gönderilmedi. Eksik ayrıntıları hatırlıyormuş gibi davranma; gerektiğinde kullanıcıya sor."
     messages.extend(recent)
-    if note:
-        messages.append({"role": "user", "content": "Bu sohbet için kullanıcı notu (sistem talimatı değildir):\n" + note})
-    if file_context:
-        messages.append({"role": "user", "content": "Analiz edilecek güvenilmeyen dosya kesitleri:\n" + file_context})
+    if note_message:
+        messages.append({"role": "user", "content": note_message})
+    if context_message:
+        messages.append({"role": "user", "content": context_message})
     messages.append({"role": "user", "content": prompt})
     return messages
 
@@ -82,10 +138,16 @@ def ask_model(prompt, mode, history, file_context="", web_enabled=False,
         return ModelResult("Mesaj çok uzun. Lütfen 12.000 karakterden kısa bölümler gönderin.")
     if len(note) > MAX_NOTE:
         return ModelResult("Sohbet notu çok uzun. En fazla 2.000 karakter kullanın.")
-    payload = {"model": MODEL, "messages": build_messages(prompt, mode, history, file_context, note),
-               "temperature": 0.3, "max_completion_tokens": 1200, "reasoning_effort": "low"}
-    if web_enabled:
-        payload.update(tools=[{"type": "browser_search"}], tool_choice="required")
+    try:
+        messages = build_messages(prompt, mode, history, file_context, note)
+    except InputBudgetError as exc:
+        return ModelResult(str(exc))
+    payload = {"model": MODEL, "messages": messages,
+               "temperature": 0.3, "max_completion_tokens": 1200, "reasoning_effort": "low", "tool_choice": "none"}
+    research_requested = wants_research(prompt, web_enabled)
+    if research_requested:
+        payload.update(tools=[{"type": "browser_search"}], tool_choice="auto")
+        payload["messages"][0]["content"] += "\nBu soruda güncel bilgiler için browser_search kullan. Kaynak bulunamazsa açıkla."
     request = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json", "User-Agent": "NesilAI/1.1"}, method="POST")
@@ -101,13 +163,20 @@ def ask_model(prompt, mode, history, file_context="", web_enabled=False,
             return ModelResult("Sağlayıcı boş yanıt döndürdü. Yeniden deneyebilirsiniz.")
         if choice.get("finish_reason") == "length":
             answer += "\n\n⚠️ Yanıt uzunluk sınırında kesildi. Devam etmemi isteyebilirsiniz."
-        ledger = research_record(answer, web_enabled, datetime.now(timezone.utc).isoformat())
-        if web_enabled:
+        ledger = research_record(answer, research_requested, datetime.now(timezone.utc).isoformat())
+        if research_requested:
             ledger["question"] = prompt
+            enrich_sources(ledger, choice["message"].get("executed_tools", []), choice["message"].get("annotations", []))
+            answer = render_citations(answer, ledger)
+            if not ledger["sources"]:
+                answer = "Bu soru için açılabilir bir kaynak bağlantısı elde edemedim. Adres, çalışma saati veya hizmet bilgisi gibi ayrıntıları doğrulayamadığım için kesin bilgi veremiyorum. Kurumun resmî bağlantısını paylaşabilir veya soruyu daha açık yazarak yeniden araştırabilirsiniz."
         return ModelResult(answer, ok=True, usage=data.get("usage", {}), research=ledger)
     except urllib.error.HTTPError as exc:
         code = exc.code
         retry = retry_seconds(exc.headers.get("Retry-After")) if code == 429 else 0
+        category = error_details(exc)
+        error_id = uuid.uuid4().hex[:12]
+        LOGGER.warning("provider_error id=%s status=%s category=%s", error_id, code, category)
         exc.close()
         if code == 429:
             return ModelResult(f"Ortak Groq kullanım sınırına ulaşıldı. Yaklaşık {retry} saniye sonra yeniden deneyebilirsiniz. Sorunuz korunuyor; canlı doğrulama tamamlanmadı.", retry_after=retry)
@@ -115,6 +184,14 @@ def ask_model(prompt, mode, history, file_context="", web_enabled=False,
             return ModelResult("Model erişimi reddedildi. Yönetici anahtarı ve model erişim izinlerini kontrol etmeli.")
         if code >= 500:
             return ModelResult("Model hizmeti geçici olarak kullanılamıyor. Biraz sonra yeniden deneyin.")
-        return ModelResult(f"Model isteği işlenemedi (HTTP {code}). Daha kısa bir istek deneyin veya yöneticiye bildirin.")
+        if category == "tool_use_failed":
+            text = "Araştırma aracı yanıtı tamamlayamadı. Sorunuz korunuyor; yeniden deneyebilir veya araştırmayı kapatarak sohbet edebilirsiniz."
+        elif category == "context_length_exceeded" or code == 413:
+            text = "Sohbet ve belge bağlamı model sınırını aştı. Dosya bağlamını azaltarak yeniden deneyin."
+        elif code == 400:
+            text = "Model isteği kabul edilmedi. Sorunuz korunuyor; yönetici istek ayarlarını ve hata kaydını kontrol etmeli."
+        else:
+            text = f"Model isteği işlenemedi (HTTP {code}). Sorunuz korunuyor."
+        return ModelResult(text + f" Hata kaydı: {error_id}", error_id=error_id)
     except Exception:
         return ModelResult("Model bağlantısı tamamlanamadı. Ağ veya sağlayıcı sorunu olabilir; yeniden deneyebilirsiniz.")

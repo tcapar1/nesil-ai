@@ -1,5 +1,23 @@
 # Aşamalı geliştirme
 
+## 30 Ekim 2026 — güvenilirlik ve ücretsiz kullanım güncellemesi
+
+- Sohbet/araştırma ayrımı, zorunlu arama kaynaklı hata riskinin azaltılması.
+- Gizli veri içermeyen hata kimliği/kategori kaydı.
+- Açık sağlayıcı kaynak metadata'sı ve alıntı kimliği eşleştirmesi; kaynaksız
+  araştırma ayrıntıları yerine açık başarısızlık yanıtı.
+- İsteğe bağlı kaynak kesiti/yanıt karşılaştırması ve yönetici ek kaynak alan adları.
+- Uzun belgelerde örtüşen kesit araması ve kaynak konumları; ayrı süreç/süre sınırı.
+- İsteğe bağlı yerel OCR; sunucuda Tesseract/dil verisi kurulumu gerekir.
+- Küçük ekip giriş kapısı, SQLite üzerinden ortak günlük/dakikalık kota ve 429 beklemesi.
+- Ücretsiz Groq plan sınırları altında varsayılanlar; ücretli yedek servis yok.
+- Windows ve Linux için otomatik test iş akışı.
+
+Canlı Groq arama şeması ve gerçek cevap doğruluğu, gerçek Tesseract OCR,
+çok sunuculu kota deposu, tam kimlik yönetimi ve mobil görsel deneme sonraki
+doğrulama/geliştirme başlıklarıdır. Aşağıdaki aşamalar tarihsel planı açıklar;
+güncel kurulum ve sınırlar README içindedir.
+
 ## 1. Güvenilir temel — bu değişiklik
 
 Streamlit korunur. Model bağlantısı ve belge okuma ayrılır. Ham sağlayıcı
