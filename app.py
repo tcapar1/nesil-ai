@@ -6,6 +6,7 @@ import streamlit as st
 from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, select_context
 from document_worker import extract_bounded
 from model_client import ask_model, read_api_key
+from local_model import ask_local_model, local_model_configured
 from research_ui import show_research
 from tools_ui import email_tools, voice_tools
 from python_runner import runner_tools
@@ -34,7 +35,12 @@ with st.sidebar:
     if principal != "public" and st.button("Çıkış yap", use_container_width=True):
         st.session_state.clear()
         st.rerun()
-    mode = st.selectbox("Çalışma biçimi", ["Genel yardımcı", "Görev planlama", "Kodlama yardımcısı", "Belge ve rapor yardımcısı"])
+    mode = st.selectbox("Çalışma biçimi", ["Genel yardımcı", "Görev planlama", "Kodlama yardımcısı", "Matematik öğretmeni", "Belge ve rapor yardımcısı"])
+    if mode in ("Kodlama yardımcısı", "Matematik öğretmeni"):
+        if local_model_configured():
+            st.caption("Yerel Ollama modeli etkin. Bu modda soru ve bağlam bilgisayarındaki yerel modele gönderilir.")
+        else:
+            st.info("Bu mod için yerel Ollama bağlantısı henüz yapılandırılmadı. Groq üzerinden devam etmek için Genel yardımcı veya diğer modu seçin.")
     note = st.text_area("Sohbet notu", max_chars=2000, key=f"note_{st.session_state.note_generation}", help="Amaç, tercihler ve önemli kararlar. Her soruda modele gönderilir; sohbet temizlenince silinir. Kalıcı hafıza değildir.")
     st.divider()
     st.subheader("📎 Dosya analizi")
@@ -154,7 +160,13 @@ if prompt:
         with st.chat_message("assistant"):
             label = "Kaynaklı araştırma yanıtı hazırlanıyor…" if web_enabled else "Yanıt hazırlanıyor…"
             with st.spinner(label):
-                result = call_with_limits(ask_model, usage_store, principal, prompt, mode, [] if reviewing else st.session_state.messages, context, request_web, api_key=read_api_key(st.secrets), note="" if reviewing else note)
+                if mode in ("Kodlama yardımcısı", "Matematik öğretmeni"):
+                    result = ask_local_model(
+                        prompt, mode, [] if reviewing else st.session_state.messages,
+                        context, note="" if reviewing else note,
+                    )
+                else:
+                    result = call_with_limits(ask_model, usage_store, principal, prompt, mode, [] if reviewing else st.session_state.messages, context, request_web, api_key=read_api_key(st.secrets), note="" if reviewing else note)
             st.markdown(result.text)
             if result.ok:
                 show_research(st, {"research": result.research, "research_requested": request_web}, len(st.session_state.messages))
