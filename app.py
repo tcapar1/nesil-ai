@@ -34,6 +34,7 @@ for key, value in defaults.items():
 data_store = None
 memory_context = ""
 if principal != "public" and st.session_state.get("supabase_access_token"):
+    auth_client = create_auth_client(st.secrets)
     try:
         data_store = create_data_store(st.secrets, st.session_state.supabase_access_token, principal)
         if not st.session_state.get("supabase_conversations_loaded"):
@@ -42,7 +43,24 @@ if principal != "public" and st.session_state.get("supabase_access_token"):
         memories = data_store.list_memory()
         memory_context = "\n".join("- " + item["memory_text"] for item in memories)
     except SupabaseDataError as exc:
-        st.warning(str(exc))
+        if "süresi dolmuş" in str(exc).lower() and st.session_state.get("supabase_refresh_token"):
+            try:
+                refreshed = auth_client.refresh(st.session_state.supabase_refresh_token)
+                st.session_state.supabase_access_token = refreshed["access_token"]
+                st.session_state.supabase_refresh_token = refreshed["refresh_token"]
+                data_store = create_data_store(st.secrets, refreshed["access_token"], principal)
+                st.session_state.supabase_conversations = data_store.list_conversations()
+                st.session_state.supabase_conversations_loaded = True
+                memories = data_store.list_memory()
+                memory_context = "\n".join("- " + item["memory_text"] for item in memories)
+            except (SupabaseAuthError, SupabaseDataError, KeyError):
+                st.session_state.pop("supabase_access_token", None)
+                st.session_state.pop("supabase_refresh_token", None)
+                st.session_state.pop("supabase_user_id", None)
+                st.warning("Oturum yenilenemedi. Lütfen yeniden giriş yapın.")
+                st.stop()
+        else:
+            st.warning(str(exc))
 
 with st.sidebar:
     st.title("🤖 Nesil AI")
