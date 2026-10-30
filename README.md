@@ -48,8 +48,9 @@ OCR kullanılmadan normal metinli PDF'ler okunmaya devam eder. OCR gerçek
 motor kurulumu ve tarama kalitesiyle ayrıca değerlendirilmelidir.
 
 Uygulama konuşmaları kalıcı veritabanına yazmaz; oturum belleğinde en fazla
-100 mesaj tutar. Yanıt için soru, sınırlı sohbet geçmişi ve seçilen dosya
-kesitleri Groq'a aktarılır. Web araştırması ek hizmetlere veri aktarımı
+100 mesaj tutar. Genel sohbet, görev planlama ve belge modlarında soru, sınırlı sohbet geçmişi ve seçilen dosya
+kesitleri Groq'a aktarılır. Kodlama ve matematik modlarında bu içerik, uygulama aynı bilgisayarda
+çalışıyorsa yerel Ollama'ya gönderilir. Web araştırması ek hizmetlere veri aktarımı
 içerebilir. Sağlayıcıların saklama politikaları ayrıca geçerlidir.
 Dosya bağlamını kaldırmak eski sohbet mesajlarında bulunan alıntıları silmez.
 Tüm oturum içeriğini temizleme yüklenen dosyaları ve sohbeti kaldırır.
@@ -266,8 +267,10 @@ Değişiklikler geliştirme dalında tutulur; canlı uygulamaya otomatik geçiş
 
 Kodlama ve Matematik Öğretmeni modları isteğe bağlı yerel Ollama sağlayıcısını kullanır.
 Genel yardımcı, görev planlama ve belge modları mevcut Groq sağlayıcısını kullanmaya devam eder.
-Yerel sağlayıcı etkin değilse kodlama/matematik modları açıkça yapılandırma uyarısı verir;
-Groq'a otomatik geçiş veya ücretli yedek çağrı yapılmaz.
+app.py içindeki yönlendirme kodlama ve matematik modlarını doğrudan Ollama'ya gönderir;
+diğer modlar mevcut kota denetimli Groq akışında kalır. Yerel sağlayıcı etkin değilse
+kodlama/matematik modları açıkça yapılandırma uyarısı verir. Bu modlarda internet
+araştırması devre dışıdır; Groq'a otomatik geçiş veya ücretli yedek çağrı yapılmaz.
 
 Windows bilgisayarında Ollama kurulduktan sonra PowerShell'de:
 
