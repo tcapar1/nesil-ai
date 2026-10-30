@@ -77,6 +77,12 @@ create policy nesil_memory_update_own on public.nesil_memory_items
 create policy nesil_memory_delete_own on public.nesil_memory_items
   for delete to authenticated using (user_id = (select auth.uid()));
 
+-- Remove implicit client grants before granting minimum authenticated access.
+revoke all on public.nesil_profiles from public, anon;
+revoke all on public.nesil_conversations from public, anon;
+revoke all on public.nesil_messages from public, anon;
+revoke all on public.nesil_memory_items from public, anon;
+
 -- Grant only the table operations required by authenticated sessions.
 grant select, insert, update on public.nesil_profiles to authenticated;
 grant select, insert, update, delete on public.nesil_conversations to authenticated;
