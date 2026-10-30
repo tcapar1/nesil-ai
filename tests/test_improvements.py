@@ -240,6 +240,13 @@ class ImprovementsTests(unittest.TestCase):
         self.assertIn("ücretsiz", result.text)
         provider.assert_not_called()
 
+    def test_multi_sentence_greeting_never_requests_research(self):
+        for prompt in ("Merhaba, hazır mısın? Kısa yanıt ver.", "Merhaba hazır mısın?", "Selam! Nasılsın? Kısaca cevap ver."):
+            self.assertFalse(wants_research(prompt, True))
+
+    def test_greeting_with_factual_question_still_requests_research(self):
+        self.assertTrue(wants_research("Merhaba! Yenimahalle Çözüm Kurs adresini araştır.", True))
+
 
 if __name__ == "__main__":
     unittest.main()

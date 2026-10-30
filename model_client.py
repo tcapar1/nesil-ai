@@ -55,7 +55,13 @@ SMALL_TALK = re.compile(r"(?:nesil\s*ai[ ,!?.]*)?(?:merhaba|selam|selamlar|teşe
 
 
 def wants_research(prompt, enabled):
-    return bool(enabled and not SMALL_TALK.fullmatch(prompt.strip()))
+    if not enabled:
+        return False
+    parts = [part.strip() for part in re.split(r"[,!?.;\n]+", prompt) if part.strip()]
+    def conversational(part):
+        part = re.sub(r"^(?:merhaba|selam)\s+", "", part, flags=re.I)
+        return bool(SMALL_TALK.fullmatch(part) or re.fullmatch(r"(?:lütfen\s+)?(?:kısa|kısaca)\s+(?:yanıt|cevap)\s+ver", part, re.I))
+    return not (parts and all(conversational(part) for part in parts))
 
 
 def error_details(exc):
