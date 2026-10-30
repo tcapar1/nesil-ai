@@ -260,3 +260,40 @@ Başlangıç sürümü: `1f5689ef1ce30ee58537de94fdcf89c3302c06d7`.
 Değişiklikler geliştirme dalında tutulur; canlı uygulamaya otomatik geçiş
 öngörülmez. Birleştirme sonrası sorun olursa PR commit'i revert edilerek
 önceki sürüme dönülebilir. Secrets değerlerini değiştirmeye gerek yoktur.
+
+
+## Yerel yapay zekâ: Ollama (isteğe bağlı)
+
+Kodlama ve Matematik Öğretmeni modları isteğe bağlı yerel Ollama sağlayıcısını kullanır.
+Genel yardımcı, görev planlama ve belge modları mevcut Groq sağlayıcısını kullanmaya devam eder.
+Yerel sağlayıcı etkin değilse kodlama/matematik modları açıkça yapılandırma uyarısı verir;
+Groq'a otomatik geçiş veya ücretli yedek çağrı yapılmaz.
+
+Windows bilgisayarında Ollama kurulduktan sonra PowerShell'de:
+
+```powershell
+ollama pull qwen2.5-coder:3b
+ollama pull qwen3:4b
+```
+
+Nesil AI uygulamasını aynı bilgisayarda yerel olarak çalıştırırken ortam değişkenleri:
+
+```powershell
+$env:NESIL_LOCAL_MODEL_ENABLED="true"
+$env:OLLAMA_BASE_URL="http://127.0.0.1:11434"
+$env:NESIL_OLLAMA_CODING_MODEL="qwen2.5-coder:3b"
+$env:NESIL_OLLAMA_MATH_MODEL="qwen3:4b"
+python -m streamlit run app.py
+```
+
+Ollama HTTP servisi varsayılan olarak 127.0.0.1:11434 adresinde dinler.
+**Önemli dağıtım sınırı:** Streamlit Cloud üzerindeki uygulamanın 127.0.0.1 adresi
+kullanıcının ev bilgisayarı değil, bulut sunucusudur. Kişisel bilgisayardaki Ollama'yı
+kullanmak için Nesil AI uygulaması da o bilgisayarda çalıştırılmalıdır. Uzak erişim
+için güvenli, kimlik doğrulamalı ağ geçidi ayrıca tasarlanmalı; Ollama portu internete
+doğrudan açılmamalıdır.
+
+Mevcut bilgisayardaki 8 GB RAM ve 4 GB ekran kartı belleği nedeniyle bu modellerin
+yanıt süresi yavaş olabilir. Önce 3B kodlama modelini deneyin; iki modeli aynı anda
+yüklemeyin. Matematik modeli ayrıca indirildiğinde kullanılabilir. Model indirme ve
+çalıştırma gerçek bilgisayarda ayrıca doğrulanmalıdır.
