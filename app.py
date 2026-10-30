@@ -81,6 +81,23 @@ def fetch_tuik_population_source(prompt):
     except Exception as exc:
         return "\nTÜİK resmî sayfası doğrudan alınamadı (" + type(exc).__name__ + "). Güncel nüfus doğrulanamadı; tahmin etme."
 
+def live_tuik_population_answer(prompt):
+    """Fetch the official TÜİK bulletin directly, without depending on Groq."""
+    source_text = fetch_tuik_population_source(prompt)
+    if "DOĞRUDAN GETİRİLEN TÜİK RESMÎ KAYNAĞI:" not in source_text:
+        return ""
+    if "86.092.168" not in source_text and "86 milyon 92 bin 168" not in source_text:
+        return ""
+    return (
+        "## TÜİK 2025 ADNKS sonuçları — resmî sayfa canlı olarak erişildi\\n\\n"
+        "| Gösterge | Veri |\\n|---|---|\\n"
+        "| Türkiye'de ikamet eden nüfus | **86.092.168 kişi** |\\n"
+        "| Veri yılı / referans tarihi | 2025 / 31 Aralık 2025 |\\n"
+        "| Yayın tarihi | 9 Şubat 2026 |\\n\\n"
+        "**Resmî kaynak:** [TÜİK — 2025 ADNKS sonuçları](https://data.tuik.gov.tr/Bulten/Index?p=Adrese-Dayali-Nufus-Kayit-Sistemi-Sonuclari-2025-53899)\\n\\n"
+        "Doğrulama: Bu yanıt oluşturulurken TÜİK'in resmî bülten sayfasına doğrudan HTTP isteği yapıldı ve sayfa içeriğinde 86.092.168 değeri bulundu. Groq yapay zekâ hizmeti kullanılmadı."
+    )
+
 def offline_public_data_answer(prompt, web_enabled=False):
     """Return narrowly scoped, dated public data when the provider is rate-limited."""
     q = prompt.casefold()
@@ -234,7 +251,13 @@ if prompt:
             with st.spinner("Yanıt hazırlanıyor…"):
                 # Research wording automatically enables web search for population questions.
                 use_live_search = web_enabled or (population_question and (research_intent or force_refresh))
-                answer=ask_model(prompt,mode,prior,st.session_state.file_context,use_live_search)
+                answer = ""
+                # For official population research, try TÜİK directly first.
+                # This path still works when the Groq quota is exhausted.
+                if population_question and use_live_search:
+                    answer = live_tuik_population_answer(prompt)
+                if not answer:
+                    answer=ask_model(prompt,mode,prior,st.session_state.file_context,use_live_search)
             st.markdown(answer)
         if last_user == prompt and prior and prior[-1].get("role") == "assistant":
             st.session_state.messages[-1] = {"role":"assistant","content":answer}
