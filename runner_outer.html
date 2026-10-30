@@ -1,0 +1,85 @@
+<!doctype html><html lang="tr"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval' blob:; style-src 'unsafe-inline'; connect-src https://cdn.jsdelivr.net blob:; frame-src 'self' about:; base-uri 'none'; form-action 'none'">
+<style>
+body{font:14px system-ui,sans-serif;color:#152238;margin:4px;line-height:1.5}textarea{box-sizing:border-box;width:100%;height:205px;font:13px ui-monospace,monospace;padding:10px;border:1px solid #b8c6d9;border-radius:8px;color:#152238;background:#fff}button,a.download{display:inline-block;text-decoration:none;font:inherit;padding:7px 12px;margin:6px 5px 6px 0;border:1px solid #b8c6d9;border-radius:8px;background:white;color:#152238}button:disabled{opacity:.5}button:focus-visible,textarea:focus-visible{outline:2px solid #2563eb}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f6fb;padding:10px;border-radius:8px;max-height:155px;overflow:auto;min-height:25px}#status{margin:5px 0}#files a{display:block;width:fit-content}small{color:#52647b}iframe{display:none}
+</style></head><body>
+<label for="code">Çalıştırılacak Python kodu</label>
+<textarea id="code" maxlength="20000" spellcheck="false"></textarea>
+<div><button id="run">▶ Çalıştır</button><button id="stop" disabled>■ Durdur</button><button id="save">Kodu indir</button></div>
+<div id="status" role="status" aria-live="polite">Hazır. Kod otomatik çalıştırılmaz.</div>
+<small>5 sn çalışma • 2 MB Python heap • 32 MB WebAssembly belleği • 16 KB çıktı. Kod, çıktı ve dosyalar geçicidir.</small>
+<pre id="output" aria-label="Kod çıktısı"></pre><div id="files"></div>
+<script type="module">
+__HELPERS__
+const decode=value=>new TextDecoder().decode(Uint8Array.from(atob(value),c=>c.charCodeAt(0)));
+const config=JSON.parse(decode('__CONFIG_B64__'));
+const frameHTML=decode('__FRAME_B64__');
+const code=document.getElementById('code'), run=document.getElementById('run'), stop=document.getElementById('stop'),
+      save=document.getElementById('save'), status=document.getElementById('status'), output=document.getElementById('output'), files=document.getElementById('files');
+code.value=decode('__CODE_B64__');
+let current=null, assets=null, downloads=[];
+function clearFiles(){downloads.forEach(url=>URL.revokeObjectURL(url));downloads=[];files.replaceChildren();}
+function busy(value){run.disabled=value;stop.disabled=!value;code.disabled=value;}
+function cleanup(){
+  if(current){clearTimeout(current.timer);current.abort.abort();if(current.frame){current.frame.contentWindow.postMessage({kind:'nesil-python',type:'stop',job:current.id},'*');current.frame.remove();}}
+  current=null;busy(false);
+}
+async function downloadAsset(url, digest, signal){
+  const response=await fetch(url,{credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',cache:'force-cache',signal});
+  if(!response.ok) throw Error('Çalışma motoru indirilemedi.');
+  const declared=Number(response.headers.get('content-length'));
+  if(declared>2097152) throw Error('Çalışma motoru boyutu uygun değil.');
+  const reader=response.body.getReader(), parts=[];let total=0;
+  try{while(true){const {done,value}=await reader.read();if(done)break;total+=value.byteLength;if(total>2097152)throw Error('Çalışma motoru boyutu uygun değil.');parts.push(value);}}
+  finally{reader.releaseLock();}
+  const data=new Uint8Array(total);let at=0;for(const part of parts){data.set(part,at);at+=part.byteLength;}
+  const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data)),b=>b.toString(16).padStart(2,'0')).join('');
+  if(hash!==digest) throw Error('Çalışma motoru bütünlük kontrolünden geçmedi.');
+  return data;
+}
+function showDownload(name,data){
+  const link=document.createElement('a');link.className='download';link.textContent=name+' indir';
+  const url=URL.createObjectURL(new Blob([data],{type:'text/plain;charset=utf-8'}));downloads.push(url);
+  link.href=url;link.download=name;files.appendChild(link);
+}
+run.addEventListener('click',async()=>{
+  if(current)return;
+  if(!code.value.trim() || code.value.length>LIMITS.code){status.textContent='1–20.000 karakterlik kod yazın.';return;}
+  clearFiles();output.textContent='';busy(true);
+  const job={id:crypto.randomUUID(),code:code.value,abort:new AbortController(),frame:null,timer:null};current=job;
+  status.textContent='Çalışma motoru hazırlanıyor…';
+  job.timer=setTimeout(()=>{if(current===job){cleanup();status.textContent='Çalışma motoru zamanında yüklenemedi.';}},20000);
+  try{
+    if(!assets){
+      const [moduleBytes,wasmBytes]=await Promise.all([downloadAsset(config.module,config.moduleSha256,job.abort.signal),downloadAsset(config.wasm,config.wasmSha256,job.abort.signal)]);
+      if(current!==job)return;
+      assets={moduleText:new TextDecoder('utf-8',{fatal:true}).decode(moduleBytes),wasm:patchMemory(wasmBytes).buffer};
+    }
+    if(current!==job)return;
+    clearTimeout(job.timer);
+    job.timer=setTimeout(()=>{if(current===job){cleanup();status.textContent='Çalışma alanı zamanında başlatılamadı.';}},LIMITS.bootMs);
+    const frame=document.createElement('iframe');frame.setAttribute('sandbox','allow-scripts');frame.title='İzole Python çalışma alanı';
+    job.frame=frame;frame.srcdoc=frameHTML;document.body.appendChild(frame);
+  }catch(e){if(current===job){cleanup();status.textContent=e.name==='AbortError'?'İşlem durduruldu.':(String(e.message).slice(0,200)||'Çalışma motoru hazırlanamadı.');}}
+});
+window.addEventListener('message',event=>{
+  const job=current,data=event.data;
+  if(!job || !job.frame || event.source!==job.frame.contentWindow || event.origin!=='null' || !data || data.kind!=='nesil-python')return;
+  if(data.type==='frameReady' && !job.initialized){job.initialized=true;job.frame.contentWindow.postMessage({kind:'nesil-python',type:'init',job:job.id,moduleText:assets.moduleText,wasm:assets.wasm.slice(0)},'*');return;}
+  if(data.job!==job.id)return;
+  if(data.type==='ready' && !job.running){
+    job.running=true;clearTimeout(job.timer);status.textContent='Kod çalışıyor…';
+    job.timer=setTimeout(()=>{if(current===job){cleanup();status.textContent='5 saniyelik çalışma sınırı aşıldı; çalışma alanı kapatıldı.';}},LIMITS.runMs);
+    job.frame.contentWindow.postMessage({kind:'nesil-python',type:'execute',job:job.id,code:job.code},'*');
+  }else if(data.type==='bootError'){cleanup();status.textContent='Python motoru başlatılamadı. Paneli kapatıp yeniden açmayı deneyin.';}
+  else if(data.type==='result' && job.running){
+    if(!validResult(data.result)){cleanup();status.textContent='Çıktı güvenlik veya boyut kontrolünden geçmedi.';return;}
+    const result=data.result;cleanup();output.textContent=result.text+(result.error?'\nHata: '+result.error:'');
+    result.files.forEach(f=>showDownload(f.name,f.data));
+    status.textContent=result.error?'Kod hatayla tamamlandı.':'Kod tamamlandı. '+result.files.length+' indirilebilir dosya.';
+  }
+});
+stop.addEventListener('click',()=>{if(current){cleanup();status.textContent='İşlem durduruldu; çalışma alanı kapatıldı.';}});
+save.addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([code.value],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='nesil_ai_kod.py';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+window.addEventListener('pagehide',()=>{cleanup();clearFiles();});
+</script></body></html>

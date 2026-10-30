@@ -6,6 +6,7 @@ from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, extract_file, selec
 from model_client import ask_model, read_api_key
 from research_ui import show_research
 from tools_ui import email_tools, voice_tools
+from python_runner import runner_tools
 
 
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
@@ -59,6 +60,7 @@ with st.sidebar:
         st.session_state.pop("prepared_draft", None)
         st.session_state.pop("draft_notice", None)
         st.session_state.pop("draft_fields", None)
+        st.session_state.python_mini_enabled = False
         st.rerun()
     if st.button("Tüm oturum içeriğini temizle", use_container_width=True):
         # Rate-limit timers survive content deletion.
@@ -70,6 +72,7 @@ with st.sidebar:
         st.session_state.pop("prepared_draft", None)
         st.session_state.pop("draft_notice", None)
         st.session_state.pop("draft_fields", None)
+        st.session_state.python_mini_enabled = False
         st.rerun()
     if st.session_state.messages:
         transcript = "\n\n".join(("KULLANICI: " if m["role"] == "user" else "NESİL AI: ") + m["content"] for m in st.session_state.messages)
@@ -77,7 +80,7 @@ with st.sidebar:
         records = [m["research"] for m in st.session_state.messages if (m.get("research") or {}).get("requested")]
         if records:
             st.download_button("Kaynak kayıtlarını indir", json.dumps(records, ensure_ascii=False, indent=2), file_name="nesil_ai_kaynaklar.json", mime="application/json")
-    st.caption("Bu sürüm komut çalıştırmaz, e-posta göndermez veya bilgisayarı kontrol etmez.")
+    st.caption("Sistem komutu, e-posta gönderimi ve bilgisayar kontrolü yoktur. Python Mini kodları yalnızca tarayıcıdaki ayrı çalışma alanında çalışır.")
 
 st.title("🤖 Nesil AI")
 st.caption("Sohbet et, belgeleri incele, kaynaklarıyla araştır.")
@@ -91,6 +94,7 @@ for message_index, message in enumerate(st.session_state.messages):
         if message["role"] == "assistant":
             show_research(st, message, message_index)
 voice_tools(st)
+runner_tools(st)
 wait = max(0, int(st.session_state.retry_at - time.time() + 0.999))
 if wait:
     st.warning(f"Sağlayıcı bekleme süresi: yaklaşık {wait} saniye. Süre dolunca yeniden deneyin.")

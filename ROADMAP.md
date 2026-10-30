@@ -21,9 +21,14 @@ hafıza tasarlanmalı. Akışlı yanıt ve gerçek mobil görsel test eklenmeli.
 
 ## 3. Güvenli kod çalıştırma
 
-Kod web sunucusunda exec/subprocess ile çalıştırılmamalı. Ağ kapalı,
-geçici dosyalı, kullanıcı başına izole, CPU/bellek/süre sınırı olan bir
-sandbox kurulmalı. Uygun ortam seçilmeden özellik etkinleştirilmemeli.
+Tarayıcıda deneysel Python Mini eklenmiştir: kısa MicroPython kodu,
+geçici sanal dosyalar, ağ kısıtlaması ve durdurma denetimi. Tam tarayıcı
+CPU/bellek kotası garanti edilmez; yalnızca incelenmiş kodlar içindir.
+Sınırlar ve veri akışı `PYTHON_MINI.md` dosyasındadır.
+
+Tam CPython ve güvenilmeyen kod için ayrı konteyner/VM servisi, çekirdek
+düzeyinde kaynak kotası ve kullanıcı başına izolasyon gerekir. Web sunucusunda
+exec/subprocess kullanılmamalı. Bu servis olmadan tam Python açılmamalı.
 
 ## 4. Ses ve görsel
 

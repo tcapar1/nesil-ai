@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src blob:; connect-src blob:; base-uri 'none'; form-action 'none'">
+</head><body><script>
+(() => {
+  let worker=null, job=null, phase='idle';
+  const workerCode=new TextDecoder().decode(Uint8Array.from(atob('__WORKER_B64__'),c=>c.charCodeAt(0)));
+  function send(type, data={}) { parent.postMessage({kind:'nesil-python',job,type,...data},'*'); }
+  function cleanup() { if(worker) worker.terminate(); worker=null; phase='idle'; }
+  window.addEventListener('message', event=>{
+    if(event.source!==parent || !event.data || event.data.kind!=='nesil-python') return;
+    const data=event.data;
+    if(data.type==='init' && phase==='idle') {
+      job=data.job; phase='boot';
+      try {
+        const url=URL.createObjectURL(new Blob([workerCode],{type:'text/javascript'}));
+        const active=new Worker(url); worker=active;
+        active.onerror=e=>{if(worker===active){send('bootError');cleanup();}};
+        active.onmessage=e=>{
+          if(worker!==active || !e.data) return;
+          if(e.data.type==='ready' && phase==='boot'){phase='ready';send('ready');}
+          else if(e.data.type==='bootError'){send('bootError');cleanup();}
+          else if(e.data.type==='result' && phase==='run'){send('result',{result:e.data});cleanup();}
+        };
+        active.postMessage({type:'init',moduleText:data.moduleText,wasm:data.wasm},[data.wasm]);
+      } catch (e) {send('bootError');cleanup();}
+    } else if(data.job===job && data.type==='execute' && phase==='ready') {
+      phase='run'; worker.postMessage({type:'execute',code:data.code});
+    } else if(data.job===job && data.type==='stop') cleanup();
+  });
+  window.addEventListener('pagehide',cleanup);
+  parent.postMessage({kind:'nesil-python',type:'frameReady'},'*');
+})();
+</script></body></html>
