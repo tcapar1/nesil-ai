@@ -9,7 +9,7 @@ from model_client import ask_model, read_api_key
 from research_ui import show_research
 from tools_ui import email_tools, voice_tools
 from python_runner import runner_tools
-from usage_limits import UsageStore
+from supabase_store import create_usage_store
 from access_control import require_access
 from app_service import call_with_limits
 from local_model import ask_local_model
@@ -17,7 +17,7 @@ from local_model import ask_local_model
 
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
 try:
-    usage_store = UsageStore()
+    usage_store = create_usage_store()
     principal = require_access(st, usage_store)
 except (ValueError, OSError, sqlite3.Error):
     st.error("Giriş veya kullanım kaydı ayarları geçersiz. Yönetici yapılandırmayı kontrol etmeli.")
