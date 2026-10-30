@@ -67,7 +67,7 @@ class AppTests(unittest.TestCase):
         ledger = research_record("[Kaynak](https://example.org/data)", True, "2026-10-30T12:00:00+00:00")
         with patch("model_client.ask_model", return_value=ModelResult("Kaynaklı yanıt", ok=True, research=ledger)):
             app = self.start()
-            app.checkbox[0].check().run()
+            next(w for w in app.checkbox if w.label == "İnternette araştır").check().run()
             app.chat_input[0].set_value("Güncel veriyi araştır").run()
             self.assertFalse(app.exception)
             self.assertEqual(app.session_state["messages"][-1]["research"], ledger)
@@ -77,7 +77,7 @@ class AppTests(unittest.TestCase):
         ledger = research_record("Kaynak bulunamadı", True, "now")
         with patch("model_client.ask_model", return_value=ModelResult("Kaynak bulunamadı", ok=True, research=ledger)):
             app = self.start()
-            app.checkbox[0].check().run()
+            next(w for w in app.checkbox if w.label == "İnternette araştır").check().run()
             app.chat_input[0].set_value("Araştır").run()
             self.assertFalse(app.exception)
             self.assertTrue(any("doğrulanmış sayılmamalı" in warning.value for warning in app.warning))

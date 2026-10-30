@@ -141,7 +141,15 @@ uyumluluğu için eski HTML iframe adaptörü kullanılır.
 Kaynaklar: [Web Speech yerel ses özelliği](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesisVoice/localService),
 [Streamlit iframe](https://docs.streamlit.io/develop/api-reference/text/st.iframe).
 
-## Test
+## Python Mini (deneysel)
+
+İsteğe bağlı tarayıcı paneli kısa MicroPython kodlarını çalıştırır ve küçük
+TXT/CSV/JSON sonuçlarını indirir. Groq çağrısı veya ücretli çalışma servisi
+kullanmaz. Tam Python kütüphaneleri desteklenmez; tarayıcının toplam bellek
+ve CPU kullanımı için sert kota garanti edilmez. Yalnızca gözden geçirilmiş
+kodlar içindir. [Sınırlar, veri akışı ve lisans](PYTHON_MINI.md).
+
+## Testleri çalıştırma
 
 ```sh
 python -m unittest discover -s tests -v
