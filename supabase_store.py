@@ -5,7 +5,7 @@ import urllib.error
 import urllib.request
 
 
-class SupabaseStoreError(RuntimeError):
+class SupabaseStoreError(ValueError):
     pass
 
 
