@@ -12,7 +12,7 @@ from python_runner import runner_tools
 from usage_limits import UsageStore
 from access_control import require_access
 from app_service import call_with_limits
-from local_model import ask_local_model, local_model_configured
+from local_model import ask_local_model
 
 
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
