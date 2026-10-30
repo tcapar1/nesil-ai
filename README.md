@@ -326,3 +326,25 @@ ve Supabase Auth arayüzü bağlanmış değildir; bu tablolar sonraki aşama i�
 kullanıcı kimliği, oturum ve kullanıcı onaylı hafıza akışı bağlanmadan bu
 tablolar kullanılmamalıdır. Supabase Auth entegrasyonu ve veri silme
 akışları ayrı test edilmeden kalıcı sohbet etkinleştirilmez.
+
+
+### Supabase Auth (geliştirme aşaması)
+
+E-posta/şifre girişini etkinleştirmek için Streamlit Secrets içine ayrıca
+`SUPABASE_ANON_KEY` (veya `SUPABASE_PUBLISHABLE_KEY`) ekleyin.
+Ardından `NESIL_AUTH_BACKEND=supabase` ayarını kullanın. Supabase Dashboard
+üzerinde Authentication > Providers > Email ayarları ve e-posta doğrulama
+seçenekleri yönetilmelidir. Public/anon anahtar kullanıcı istemcilerinde
+kullanılmak üzere tasarlanmıştır; service-role anahtarı yalnızca sunucuda
+kalmalıdır.
+
+Yeni `202610310002_auth_rls_policies.sql` migration dosyası, ilk şema
+migration'ından sonra SQL Editor'de ayrıca uygulanmalıdır. Bu migration
+profiller, sohbetler, mesajlar ve hafıza kayıtları için kullanıcı sahipliği
+RLS politikalarını hazırlar. **Bu aşamada sohbet ve hafıza kayıtlarının
+PostgreSQL'e kaydedilmesi henüz uygulamaya bağlanmamıştır.** Giriş ekranı ve
+çıkış akışı eklenmiştir; kalıcı sohbet CRUD, token yenileme ve kullanıcı
+kontrollü hafıza akışı tamamlanıp test edilmeden bu özellikler kullanılabilir
+olarak kabul edilmemelidir. Geliştirme dalı varsayılan olarak eski erişim
+kapısını korur; Supabase Auth ancak `NESIL_AUTH_BACKEND=supabase`
+olarak açıkça seçilirse etkinleşir.
