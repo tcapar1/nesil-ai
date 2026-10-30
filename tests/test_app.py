@@ -234,8 +234,8 @@ class AppTests(unittest.TestCase):
 
     def test_coding_mode_routes_to_local_provider(self):
         with patch.dict(os.environ, {"NESIL_LOCAL_MODEL_ENABLED": "true"}), \
-             patch("app.ask_local_model", return_value=ModelResult("Yerel cevap", ok=True)) as local_provider, \
-             patch("app.call_with_limits") as cloud_provider:
+             patch("local_model.ask_local_model", return_value=ModelResult("Yerel cevap", ok=True)) as local_provider, \
+             patch("app_service.call_with_limits") as cloud_provider:
             app = self.start()
             app.selectbox[0].select("Kodlama yardımcısı").run()
             self.assertEqual(app.selectbox[0].value, "Kodlama yardımcısı")
@@ -250,8 +250,8 @@ class AppTests(unittest.TestCase):
 
     def test_math_mode_routes_to_local_provider(self):
         with patch.dict(os.environ, {"NESIL_LOCAL_MODEL_ENABLED": "true"}), \
-             patch("app.ask_local_model", return_value=ModelResult("Matematik cevabı", ok=True)) as local_provider, \
-             patch("app.call_with_limits") as cloud_provider:
+             patch("local_model.ask_local_model", return_value=ModelResult("Matematik cevabı", ok=True)) as local_provider, \
+             patch("app_service.call_with_limits") as cloud_provider:
             app = self.start()
             app.selectbox[0].select("Matematik öğretmeni").run()
             self.assertEqual(app.selectbox[0].value, "Matematik öğretmeni")
