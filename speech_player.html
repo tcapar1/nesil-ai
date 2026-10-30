@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<style>
+body{font:14px system-ui,sans-serif;color:#152238;margin:4px;line-height:1.5}
+button,select{font:inherit;border:1px solid #bbc8dc;border-radius:8px;padding:7px;margin:3px;background:#fff;color:#152238;max-width:100%}
+button:focus-visible,select:focus-visible{outline:2px solid #2563eb}
+#status{margin:6px 3px;font-size:13px}select{display:block;width:96%}
+</style></head><body>
+<label for="voice">Cihazdaki ses</label><select id="voice" aria-label="Ses seçimi"></select>
+<button id="play" disabled>▶ Dinle</button><button id="stop" disabled>■ Durdur</button>
+<p id="status" role="status" aria-live="polite">Sesler yükleniyor…</p>
+<script>
+(() => {
+  const text = new TextDecoder().decode(Uint8Array.from(atob("__SPEECH_DATA__"), c => c.charCodeAt(0)));
+  const select = document.getElementById("voice");
+  const play = document.getElementById("play");
+  const stop = document.getElementById("stop");
+  const status = document.getElementById("status");
+  if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+    status.textContent = "Bu tarayıcı seslendirmeyi desteklemiyor.";
+    return;
+  }
+  const synth = window.speechSynthesis;
+  let voices = [], current = null;
+  function loadVoices() {
+    const previous = select.value;
+    voices = synth.getVoices().filter(v => v.localService === true);
+    voices.sort((a,b) => Number(b.lang.toLowerCase().startsWith("tr")) - Number(a.lang.toLowerCase().startsWith("tr")));
+    select.replaceChildren();
+    voices.forEach((voice, index) => {
+      const option = document.createElement("option");
+      option.value = String(index);
+      option.textContent = voice.name + " (" + voice.lang + ")";
+      select.appendChild(option);
+    });
+    if (previous !== "" && voices[Number(previous)]) select.value = previous;
+    play.disabled = !voices.length || !text.trim() || current !== null;
+    if (!current) status.textContent = voices.length ? "Dinlemek için düğmeye basın. Yalnızca yerel olarak bildirilen sesler listelenir." : "Yerel ses bulunamadı. Cihazın konuşma dili paketlerini ve tarayıcı desteğini kontrol edin.";
+  }
+  play.addEventListener("click", () => {
+    const voice = voices[Number(select.value)];
+    if (!voice || voice.localService !== true || !text.trim() || current) return;
+    const utterance = new window.SpeechSynthesisUtterance(text);
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
+    current = utterance;
+    const finish = () => {
+      if (current !== utterance) return;
+      current = null; stop.disabled = true; select.disabled = false;
+      play.disabled = !voices.length; status.textContent = "Seslendirme tamamlandı.";
+    };
+    utterance.onend = finish;
+    utterance.onerror = () => { if (current !== utterance) return; finish(); status.textContent = "Seslendirme tamamlanamadı. Tarayıcı veya cihaz desteğini kontrol edin."; };
+    play.disabled = true; stop.disabled = false; select.disabled = true;
+    status.textContent = "Seslendiriliyor…";
+    try { synth.speak(utterance); } catch (_) { utterance.onerror(); }
+  });
+  stop.addEventListener("click", () => {
+    if (!current) return;
+    current = null; synth.cancel(); play.disabled = !voices.length;
+    stop.disabled = true; select.disabled = false; status.textContent = "Seslendirme durduruldu.";
+  });
+  window.addEventListener("pagehide", () => { if (current) { current = null; synth.cancel(); } });
+  synth.addEventListener("voiceschanged", loadVoices);
+  loadVoices();
+})();
+</script></body></html>
