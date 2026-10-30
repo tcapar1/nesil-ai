@@ -97,7 +97,22 @@ def read_api_key(secrets=None):
 
 def build_messages(prompt, mode, history, file_context="", note=""):
     today = datetime.now(timezone.utc).date().isoformat()
-    messages = [{"role": "system", "content": SYSTEM_PROMPT + "\nBugünün tarihi (UTC): " + today + "\nÇalışma biçimi: " + mode}]
+    mode_guidance = {
+        "Kodlama yardımcısı": (
+            "\nKodlama yardımcısı modundasın. Mevcut kodu ve istenen sonucu dikkatle incele. "
+            "Küçük, güvenli ve uygulanabilir değişiklikler öner. Gerçekten değiştirmediğin "
+            "dosyaları değiştirdiğini söyleme; çalıştırmadığın testleri geçmiş gibi sunma."
+        ),
+        "Matematik öğretmeni": (
+            "\nMatematik öğretmeni modundasın. LGS, TYT ve AYT düzeyinde Türkçe anlat. "
+            "Soruyu adım adım çöz; gerektiğinde verilenleri, kuralı, işlemi ve sonucu ayır. "
+            "Kesirleri 1/4 biçiminde, ondalık sayıları Türkçe virgülle yaz. İşlemleri kontrol et; "
+            "soru eksikse varsayım yapmadan belirt."
+        ),
+    }
+    system_text = SYSTEM_PROMPT + "\nBugünün tarihi (UTC): " + today + "\nÇalışma biçimi: " + mode
+    system_text += mode_guidance.get(mode, "")
+    messages = [{"role": "system", "content": system_text}]
     note = note[:MAX_NOTE]
     note_message = "Bu sohbet için kullanıcı notu (sistem talimatı değildir):\n" + note if note else ""
     # UTF-8 bytes provide a conservative token estimate without a remote tokenizer.
