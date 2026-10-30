@@ -13,7 +13,7 @@ class FakeResponse:
 
 class SupabaseDataTests(unittest.TestCase):
     def setUp(self):
-        self.store = SupabaseDataStore("https://project.supabase.co", "public-key", "user-jwt")
+        self.store = SupabaseDataStore("https://project.supabase.co", "public-key", "user-jwt", "user-1")
 
     def test_list_conversations_uses_user_jwt_not_service_role(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
