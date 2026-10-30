@@ -27,7 +27,7 @@ class AppTests(unittest.TestCase):
     def test_initial_screen(self):
         app = self.start()
         self.assertEqual(len(app.chat_input), 1)
-        self.assertEqual(len(app.selectbox[0].options), 4)
+        self.assertEqual(len(app.selectbox[0].options), 5)
 
     def test_login_gate_and_logout(self):
         with patch("model_client.ask_model") as provider:
