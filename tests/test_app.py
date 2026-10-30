@@ -239,7 +239,10 @@ class AppTests(unittest.TestCase):
             app = self.start()
             app.selectbox[0].select("Kodlama yardımcısı").run()
             self.assertEqual(app.selectbox[0].value, "Kodlama yardımcısı")
-            app.chat_input[0].set_value("Python fonksiyonu yaz").run()
+            app.session_state["pending_prompt"] = "Python fonksiyonu yaz"
+            app.session_state["last_request_at"] = 0
+            app.run()
+            next(b for b in app.button if b.label == "Soruyu yeniden dene").click().run()
             self.assertFalse(app.exception)
             local_provider.assert_called_once()
             cloud_provider.assert_not_called()
@@ -252,7 +255,10 @@ class AppTests(unittest.TestCase):
             app = self.start()
             app.selectbox[0].select("Matematik öğretmeni").run()
             self.assertEqual(app.selectbox[0].value, "Matematik öğretmeni")
-            app.chat_input[0].set_value("2+2 kaçtır?").run()
+            app.session_state["pending_prompt"] = "2+2 kaçtır?"
+            app.session_state["last_request_at"] = 0
+            app.run()
+            next(b for b in app.button if b.label == "Soruyu yeniden dene").click().run()
             self.assertFalse(app.exception)
             local_provider.assert_called_once()
             cloud_provider.assert_not_called()
