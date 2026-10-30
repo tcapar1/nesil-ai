@@ -237,7 +237,8 @@ class AppTests(unittest.TestCase):
              patch("app.ask_local_model", return_value=ModelResult("Yerel cevap", ok=True)) as local_provider, \
              patch("app.call_with_limits") as cloud_provider:
             app = self.start()
-            app.selectbox[0].set_value("Kodlama yardımcısı").run()
+            app.selectbox[0].select("Kodlama yardımcısı").run()
+            self.assertEqual(app.selectbox[0].value, "Kodlama yardımcısı")
             app.chat_input[0].set_value("Python fonksiyonu yaz").run()
             self.assertFalse(app.exception)
             local_provider.assert_called_once()
@@ -249,7 +250,8 @@ class AppTests(unittest.TestCase):
              patch("app.ask_local_model", return_value=ModelResult("Matematik cevabı", ok=True)) as local_provider, \
              patch("app.call_with_limits") as cloud_provider:
             app = self.start()
-            app.selectbox[0].set_value("Matematik öğretmeni").run()
+            app.selectbox[0].select("Matematik öğretmeni").run()
+            self.assertEqual(app.selectbox[0].value, "Matematik öğretmeni")
             app.chat_input[0].set_value("2+2 kaçtır?").run()
             self.assertFalse(app.exception)
             local_provider.assert_called_once()
