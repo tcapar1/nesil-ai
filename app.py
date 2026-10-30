@@ -143,6 +143,15 @@ def ask_model(prompt, mode, history, file_context="", web_enabled=False):
         return f"Model bağlantısı başarısız oldu ({type(exc).__name__}). Biraz sonra tekrar deneyin."
 
 if "messages" not in st.session_state: st.session_state.messages=[]
+# Clean up duplicate adjacent user/assistant pairs left by earlier app versions.
+_clean_messages = []
+for _message in st.session_state.messages:
+    if (_clean_messages and
+        _clean_messages[-1].get("role") == _message.get("role") and
+        _clean_messages[-1].get("content") == _message.get("content")):
+        continue
+    _clean_messages.append(_message)
+st.session_state.messages = _clean_messages
 if "file_context" not in st.session_state: st.session_state.file_context=""
 if "file_names" not in st.session_state: st.session_state.file_names=[]
 
