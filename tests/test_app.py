@@ -229,6 +229,29 @@ class AppTests(unittest.TestCase):
         self.assertFalse(app.exception)
         self.assertEqual(len([b for b in app.button if b.label == "Kaynak sayfalarını kontrol et"]), 2)
 
+    def test_coding_mode_routes_to_local_provider(self):
+        with patch.dict(os.environ, {"NESIL_LOCAL_MODEL_ENABLED": "true"}), \
+             patch("app.ask_local_model", return_value=ModelResult("Yerel cevap", ok=True)) as local_provider, \
+             patch("app.call_with_limits") as cloud_provider:
+            app = self.start()
+            app.selectbox[0].set_value("Kodlama yardımcısı").run()
+            app.chat_input[0].set_value("Python fonksiyonu yaz").run()
+            self.assertFalse(app.exception)
+            local_provider.assert_called_once()
+            cloud_provider.assert_not_called()
+            self.assertEqual(app.session_state["messages"][-1]["content"], "Yerel cevap")
+
+    def test_math_mode_routes_to_local_provider(self):
+        with patch.dict(os.environ, {"NESIL_LOCAL_MODEL_ENABLED": "true"}), \
+             patch("app.ask_local_model", return_value=ModelResult("Matematik cevabı", ok=True)) as local_provider, \
+             patch("app.call_with_limits") as cloud_provider:
+            app = self.start()
+            app.selectbox[0].set_value("Matematik öğretmeni").run()
+            app.chat_input[0].set_value("2+2 kaçtır?").run()
+            self.assertFalse(app.exception)
+            local_provider.assert_called_once()
+            cloud_provider.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
