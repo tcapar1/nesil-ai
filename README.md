@@ -89,8 +89,9 @@ e-posta programına bağlıdır. Hiçbir SMTP/OAuth bağlantısı veya otomatik
 gönderim yapılmaz. Taslak alanları modele gönderilmez ve sohbet temizlenince
 silinir. Konu/alıcı başlıklarında kontrol karakterleri reddedilir. Standart
 tek ASCII adres desteklenir; görünen ad ve çoklu alıcı desteklenmez.
-Hazırlama sonrasında alanlar değişirse eski indirme düğmesi gizlenir;
-taslağın yeniden hazırlanması gerekir.
+Alanlar tek formda birlikte gönderilir; hazırlama sonrasında alıcı, konu ve
+ileti salt okunur önizlemede gösterilir. **Taslağı düzenle** ile forma geri
+dönülür ve önceki indirme kaldırılır. Düzenlenen taslak yeniden hazırlanır.
 
 **Son yanıtı dinle** bölümünde denetimler kullanıcı seçimiyle açılır ve ses
 yalnızca Dinle düğmesine basıldığında başlar. Tarayıcının `localService=true`

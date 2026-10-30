@@ -85,9 +85,9 @@ class AppTests(unittest.TestCase):
     def test_email_draft_creation_does_not_call_model(self):
         with patch("model_client.ask_model") as provider:
             app = self.start()
-            next(w for w in app.text_input if w.label == "Alıcı (tek adres, isteğe bağlı)").set_value("test@example.org").run()
-            next(w for w in app.text_input if w.label == "Konu").set_value("Görüşme").run()
-            next(w for w in app.text_area if w.label == "İleti metni").set_value("Türkçe ileti").run()
+            next(w for w in app.text_input if w.label == "Alıcı (tek adres, isteğe bağlı)").set_value("test@example.org")
+            next(w for w in app.text_input if w.label == "Konu").set_value("Görüşme")
+            next(w for w in app.text_area if w.label == "İleti metni").set_value("Türkçe ileti")
             next(b for b in app.button if b.label == "Taslağı hazırla").click().run()
             self.assertFalse(app.exception)
             message = BytesParser(policy=policy.default).parsebytes(app.session_state["prepared_draft"]["content"])
@@ -95,6 +95,12 @@ class AppTests(unittest.TestCase):
             self.assertEqual(message["X-Unsent"], "1")
             self.assertIn("Türkçe ileti", message.get_content())
             provider.assert_not_called()
+            self.assertFalse(any(w.label == "Konu" for w in app.text_input))
+            next(b for b in app.button if b.label == "Taslağı düzenle").click().run()
+            self.assertEqual(next(w for w in app.text_input if w.label == "Konu").value, "Görüşme")
+            self.assertEqual(next(w for w in app.text_input if w.label == "Alıcı (tek adres, isteğe bağlı)").value, "test@example.org")
+            self.assertEqual(next(w for w in app.text_area if w.label == "İleti metni").value, "Türkçe ileti")
+            self.assertNotIn("prepared_draft", app.session_state)
             next(w for w in app.text_input if w.label == "Konu").set_value("Değişen konu").run()
             self.assertFalse(any("Taslak hazır" in w.value for w in app.success))
 
@@ -115,6 +121,7 @@ class AppTests(unittest.TestCase):
         next(b for b in app.button if b.label == "Tüm oturum içeriğini temizle").click().run()
         self.assertFalse(app.exception)
         self.assertEqual(next(w for w in app.text_area if w.label == "İleti metni").value, "")
+        self.assertNotIn("draft_fields", app.session_state)
 
     def test_speech_controls_are_opt_in(self):
         with patch("tools_ui.render_speech") as renderer:

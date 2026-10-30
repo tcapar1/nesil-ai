@@ -76,6 +76,7 @@ with st.sidebar:
         st.session_state.draft_generation = st.session_state.get("draft_generation", 0) + 1
         st.session_state.pop("prepared_draft", None)
         st.session_state.pop("draft_notice", None)
+        st.session_state.pop("draft_fields", None)
         st.rerun()
     if st.button("Tüm oturum içeriğini temizle", use_container_width=True):
         # Rate-limit timers survive content deletion.
@@ -86,6 +87,7 @@ with st.sidebar:
         st.session_state.draft_generation = st.session_state.get("draft_generation", 0) + 1
         st.session_state.pop("prepared_draft", None)
         st.session_state.pop("draft_notice", None)
+        st.session_state.pop("draft_fields", None)
         st.rerun()
     if st.session_state.messages:
         transcript = "\n\n".join(("KULLANICI: " if m["role"] == "user" else "NESİL AI: ") + m["content"] for m in st.session_state.messages)
