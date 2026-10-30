@@ -33,6 +33,9 @@ class AppTests(unittest.TestCase):
         with patch("model_client.ask_model") as provider:
             app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=20)
             app.secrets["NESIL_USERS"] = {"ayse": "long-test-access-code"}
+            # AppTest secrets are process-global; prevent this login fixture from
+            # leaking into later tests that expect the public app configuration.
+            self.addCleanup(lambda: app.secrets.pop("NESIL_USERS", None))
             app.run()
             self.assertEqual(len(app.chat_input), 0)
             next(w for w in app.text_input if w.label == "Kullanıcı adı").set_value("ayse")
