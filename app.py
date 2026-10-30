@@ -25,7 +25,7 @@ except (ValueError, OSError, sqlite3.Error):
     st.error("Giriş veya kullanım kaydı ayarları geçersiz. Yönetici yapılandırmayı kontrol etmeli.")
     st.stop()
 defaults = {"messages": [], "documents": [], "file_names": [], "retry_at": 0,
-            "last_request_at": 0, "pending_prompt": "", "last_error": "", "usage": {}, "upload_generation": 0, "note_generation": 0}
+            "last_request_at": 0, "pending_prompt": "", "last_error": "", "usage": {}, "upload_generation": 0, "note_generation": 0, "memory_input_generation": 0}
 for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
@@ -105,11 +105,11 @@ with st.sidebar:
                 except SupabaseDataError as exc:
                     st.error(str(exc))
         st.subheader("🧠 Kalıcı hafıza")
-        memory_text = st.text_area("Hatırlanmasını istediğiniz bilgi", max_chars=4000, key="memory_input")
+        memory_text = st.text_area("Hatırlanmasını istediğiniz bilgi", max_chars=4000, key=f"memory_input_{st.session_state.memory_input_generation}")
         if st.button("Hafızaya kaydet", use_container_width=True):
             try:
                 data_store.add_memory(memory_text)
-                st.session_state.memory_input = ""
+                st.session_state.memory_input_generation += 1
                 st.rerun()
             except SupabaseDataError as exc:
                 st.error(str(exc))
@@ -160,6 +160,7 @@ with st.sidebar:
     st.divider()
     if st.button("Sohbeti temizle", use_container_width=True):
         st.session_state.messages = []
+        st.session_state.pop("supabase_active_conversation", None)
         st.session_state.pending_prompt = ""
         st.session_state.last_error = ""
         st.session_state.pop("source_review", None)
@@ -171,6 +172,8 @@ with st.sidebar:
         st.session_state.python_mini_enabled = False
         st.rerun()
     if st.button("Tüm oturum içeriğini temizle", use_container_width=True):
+        # This clears this session only; saved database records remain available.
+        st.session_state.pop("supabase_active_conversation", None)
         # Rate-limit timers survive content deletion.
         for key in ("messages", "documents", "file_names", "pending_prompt", "last_error", "usage"):
             st.session_state.pop(key, None)
