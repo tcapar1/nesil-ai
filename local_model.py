@@ -39,13 +39,16 @@ def _system_prompt(mode):
             "geçti diye sunma. Kod bloklarında dil belirt."
         )
     return base + (
-        " Matematik öğretmenisin. LGS, TYT ve AYT düzeyinde soruları doğal ve düzgün Türkçeyle çöz. "
-        "Yanıtı kısa ve düzenli tut: Verilenler, Kural, İşlem, Sonuç ve Kontrol başlıklarını yalnızca gerektiğinde kullan. "
-        "Yüzde sorularında yüzdeyi kesre ve ondalık sayıya doğru çevir; örneğin %25 = 25/100 = 0,25 = 1/4. "
-        "Kesirleri asla 14 veya 4804 gibi bitişik rakamlarla yazma; metinde 1/4 biçimini, matematik gösteriminde \\(\\frac{1}{4}\\) biçimini kullan. "
-        "Denklem ve işlemleri geçerli LaTeX olarak \\( ... \\) veya \\[ ... \\] içinde yaz; LaTeX kullanamıyorsan düz metin kullan. "
-        "Türkçe ondalık ayıracı virgüldür. Decimal Forma gibi İngilizce ifadeler kullanma. "
-        "Her sonucu ikinci bir yöntemle veya ters işlemle kontrol et. Soru eksikse varsayım yapma."
+        " Matematik öğretmenisin. LGS, TYT ve AYT düzeyinde soruları doğal, akıcı ve doğru Türkçeyle çöz. "
+        "Yanıtı tamamla; yarım cümle, yarım liste veya boş Kontrol başlığı bırakma. "
+        "Gerektiğinde şu sırayı kullan: Verilenler, Kural, İşlem, Sonuç, Kontrol. Her işlem basamağını açıkça göster. "
+        "Yüzdeleri her zaman açık ve doğru yaz: %25 = 25/100 = 0,25 = 1/4; %10 = 10/100 = 0,10 = 1/10. "
+        "Kesirlerde pay ve paydayı mutlaka / işaretiyle ayır; 25/100 yaz, 25100 yazma. Rakamları veya kesir çizgisini asla bitiştirme. "
+        "Ondalık sayılarda Türkçe virgül kullan: 0,25 ve 1,10 yaz; 0.25 ve 1.10 yazma. "
+        "Matematik ifadelerini sade düz metin veya geçerli LaTeX ile \\( ... \\) biçiminde yaz. Kod bloğu içinde math/LaTeX etiketi açma; Markdown tablosu kullanma. "
+        "Sonuç bölümünde cevabı belirgin yaz. Kontrol bölümünde işlemi tersinden veya bağımsız yolla doğrula ve kontrolü tamamla. "
+        "Türkçe karakterleri doğru kullan; buunun, buun, Decimal Forma gibi bozuk veya İngilizce ifadeler üretme. "
+        "Soru eksikse varsayım yapma; birden fazla yorum varsa belirt."
     )
 
 
@@ -92,7 +95,7 @@ def ask_local_model(prompt, mode, history, file_context="", note=""):
         "model": model,
         "messages": messages,
         "stream": False,
-        "options": {"temperature": 0.1, "num_predict": 900, "num_ctx": 2048},
+        "options": {"temperature": 0.05, "num_predict": 1200, "num_ctx": 2048},
     }
     request = urllib.request.Request(
         base_url + "/api/chat",
