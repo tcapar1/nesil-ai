@@ -5,6 +5,7 @@ import streamlit as st
 from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, extract_file, select_context
 from model_client import ask_model, read_api_key
 from research import research_caption
+from tools_ui import email_tools, voice_tools
 
 
 def show_research(message):
@@ -65,12 +66,16 @@ with st.sidebar:
     st.divider()
     web_enabled = st.checkbox("İnternette araştır", value=False)
     st.caption("Açıkken Groq browser_search aracı istenir. Bu sürüm arama yürütme kaydını ayrıca doğrulamaz; cevap içindeki doğrudan kaynakları kontrol edin.")
+    email_tools(st)
     st.divider()
     if st.button("Sohbeti temizle", use_container_width=True):
         st.session_state.messages = []
         st.session_state.pending_prompt = ""
         st.session_state.last_error = ""
         st.session_state.note_generation += 1
+        st.session_state.draft_generation = st.session_state.get("draft_generation", 0) + 1
+        st.session_state.pop("prepared_draft", None)
+        st.session_state.pop("draft_notice", None)
         st.rerun()
     if st.button("Tüm oturum içeriğini temizle", use_container_width=True):
         # Rate-limit timers survive content deletion.
@@ -78,6 +83,9 @@ with st.sidebar:
             st.session_state.pop(key, None)
         st.session_state.upload_generation += 1
         st.session_state.note_generation += 1
+        st.session_state.draft_generation = st.session_state.get("draft_generation", 0) + 1
+        st.session_state.pop("prepared_draft", None)
+        st.session_state.pop("draft_notice", None)
         st.rerun()
     if st.session_state.messages:
         transcript = "\n\n".join(("KULLANICI: " if m["role"] == "user" else "NESİL AI: ") + m["content"] for m in st.session_state.messages)
@@ -98,6 +106,7 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
         if message["role"] == "assistant":
             show_research(message)
+voice_tools(st)
 wait = max(0, int(st.session_state.retry_at - time.time() + 0.999))
 if wait:
     st.warning(f"Sağlayıcı bekleme süresi: yaklaşık {wait} saniye. Süre dolunca yeniden deneyin.")

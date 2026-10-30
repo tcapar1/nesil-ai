@@ -2,8 +2,10 @@
 
 Türkçe öncelikli Streamlit asistanı. Bu sürüm sohbet, dört çalışma modu,
 belgelerden sınırlı metin çıkarma, isteğe bağlı Groq web araştırması ve TXT
-sohbet indirme sunar. Bilgisayar kontrolü, kod çalıştırma, e-posta, görsel ve
-ses araçları henüz uygulanmamıştır; `ROADMAP.md` aşamalarını izleyin.
+sohbet indirme sunar. Ayrıca gönderilmeyen e-posta taslağı indirme ve
+tarayıcıdaki yerel seslerle son yanıtı dinleme araçları vardır. Bilgisayar
+kontrolü, kod çalıştırma, gerçek e-posta gönderimi, görsel üretimi ve sesi
+yazıya çevirme henüz uygulanmamıştır; `ROADMAP.md` aşamalarını izleyin.
 
 ## Kurulum
 
@@ -77,6 +79,36 @@ Otomatik tekrar ve ilave özet API çağrısı yoktur. Bunlar oturum önlemlerid
 kuruluş düzeyindeki kotayı veya yeni oturum açarak sınır aşılmasını önlemez.
 Kalıcı/global kota yönetimi sonraki aşamadadır. Karakter bütçesi token
 sayımının yaklaşık bir karşılığıdır; kesin token sayacı değildir.
+
+## E-posta taslağı ve seslendirme
+
+Yan panelde **E-posta taslağı** bölümünden tek alıcı (isteğe bağlı), konu ve
+ileti metni girilip `.eml` dosyası indirilebilir. Son yanıt kullanıcı düğmesiyle
+ileti metnine alınabilir. Dosyada `X-Unsent: 1` vardır; taslak olarak açılışı
+e-posta programına bağlıdır. Hiçbir SMTP/OAuth bağlantısı veya otomatik
+gönderim yapılmaz. Taslak alanları modele gönderilmez ve sohbet temizlenince
+silinir. Konu/alıcı başlıklarında kontrol karakterleri reddedilir. Standart
+tek ASCII adres desteklenir; görünen ad ve çoklu alıcı desteklenmez.
+Hazırlama sonrasında alanlar değişirse eski indirme düğmesi gizlenir;
+taslağın yeniden hazırlanması gerekir.
+
+**Son yanıtı dinle** bölümünde denetimler kullanıcı seçimiyle açılır ve ses
+yalnızca Dinle düğmesine basıldığında başlar. Tarayıcının `localService=true`
+olarak bildirdiği sesler listelenir, varsa Türkçe ses öne alınır. Böyle bir
+ses yoksa uzak ses hizmetine otomatik geçilmez. Durdur düğmesi vardır.
+İlk 8.000 karakter seslendirilir; uzun yanıtlar için sınır gösterilir.
+Ek model veya ücretli ses API çağrısı yoktur. Türkçe ses kalitesi, cihaz
+dil paketleri ve tarayıcı desteği değişebilir. Mikrofon kaydı veya ses dosyası
+üretimi yapılmaz. Gerçek cihazda ses çıkışı ayrıca doğrulanmalıdır.
+
+Ses denetimleri sabit bir HTML/JS bileşenidir; yanıt metni yalnızca base64
+veri olarak geçirilip konuşma metni şeklinde kullanılır. Kullanıcı veya
+model yanıtı HTML/JavaScript kodu olarak yerleştirilmez. Bileşen içindeki ağ
+istekleri CSP ile kapalıdır. Yeni Streamlit sürümlerinde `st.iframe`, 1.40
+uyumluluğu için eski HTML iframe adaptörü kullanılır.
+
+Kaynaklar: [Web Speech yerel ses özelliği](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesisVoice/localService),
+[Streamlit iframe](https://docs.streamlit.io/develop/api-reference/text/st.iframe).
 
 ## Test
 

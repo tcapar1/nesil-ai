@@ -4,6 +4,8 @@ from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 from model_client import ModelResult
 from research import research_record
+from email import policy
+from email.parser import BytesParser
 
 
 class AppTests(unittest.TestCase):
@@ -79,6 +81,58 @@ class AppTests(unittest.TestCase):
             app.chat_input[0].set_value("Araştır").run()
             self.assertFalse(app.exception)
             self.assertTrue(any("doğrulanmış sayılmamalı" in warning.value for warning in app.warning))
+
+    def test_email_draft_creation_does_not_call_model(self):
+        with patch("model_client.ask_model") as provider:
+            app = self.start()
+            next(w for w in app.text_input if w.label == "Alıcı (tek adres, isteğe bağlı)").set_value("test@example.org").run()
+            next(w for w in app.text_input if w.label == "Konu").set_value("Görüşme").run()
+            next(w for w in app.text_area if w.label == "İleti metni").set_value("Türkçe ileti").run()
+            next(b for b in app.button if b.label == "Taslağı hazırla").click().run()
+            self.assertFalse(app.exception)
+            message = BytesParser(policy=policy.default).parsebytes(app.session_state["prepared_draft"]["content"])
+            self.assertEqual(message["To"], "test@example.org")
+            self.assertEqual(message["X-Unsent"], "1")
+            self.assertIn("Türkçe ileti", message.get_content())
+            provider.assert_not_called()
+            next(w for w in app.text_input if w.label == "Konu").set_value("Değişen konu").run()
+            self.assertFalse(any("Taslak hazır" in w.value for w in app.success))
+
+    def test_invalid_email_draft_has_no_download(self):
+        app = self.start()
+        next(b for b in app.button if b.label == "Taslağı hazırla").click().run()
+        self.assertFalse(app.exception)
+        self.assertTrue(any("Konu" in w.value for w in app.error))
+        self.assertNotIn("prepared_draft", app.session_state)
+
+    def test_copy_answer_and_clear_email_fields(self):
+        app = self.start()
+        app.session_state["messages"] = [{"role": "assistant", "content": "Son yanıt"}]
+        app.run()
+        next(b for b in app.button if b.label == "Son yanıtı taslağa al").click().run()
+        self.assertFalse(app.exception)
+        self.assertEqual(next(w for w in app.text_area if w.label == "İleti metni").value, "Son yanıt")
+        next(b for b in app.button if b.label == "Tüm oturum içeriğini temizle").click().run()
+        self.assertFalse(app.exception)
+        self.assertEqual(next(w for w in app.text_area if w.label == "İleti metni").value, "")
+
+    def test_speech_controls_are_opt_in(self):
+        with patch("tools_ui.render_speech") as renderer:
+            app = self.start()
+            app.session_state["messages"] = [{"role": "assistant", "content": "Yanıt"}]
+            app.run()
+            renderer.assert_not_called()
+            next(w for w in app.checkbox if w.label == "Seslendirme denetimlerini aç").check().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(renderer.call_args.args[1], "Yanıt")
+
+    def test_speech_iframe_is_rendered(self):
+        app = self.start()
+        app.session_state["messages"] = [{"role": "assistant", "content": "Türkçe ses denemesi"}]
+        app.run()
+        next(w for w in app.checkbox if w.label == "Seslendirme denetimlerini aç").check().run()
+        self.assertFalse(app.exception)
+        self.assertEqual(len(app.get("iframe")), 1)
 
 
 if __name__ == "__main__":

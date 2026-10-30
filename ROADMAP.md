@@ -24,12 +24,21 @@ sandbox kurulmalı. Uygun ortam seçilmeden özellik etkinleştirilmemeli.
 
 ## 4. Ses ve görsel
 
+Son yanıtı tarayıcının yerel olarak bildirdiği seslerle dinleme eklenmiştir.
+Kullanıcı denetimleri açıp Dinle düğmesine basar; uygun yerel ses yoksa
+uzak ses hizmetine geçilmez. Gerçek cihazlarda ses kalitesi ve destek ayrıca
+test edilmelidir. Mikrofon/transkripsiyon ve görsel üretimi henüz yoktur.
+
 Önce sağlayıcıların ücretsiz sınırları ve veri işleme koşulları doğrulanmalı.
 Yükleme boyutu/süre sınırları ve oturum bazlı silme sağlanmalı. Görsel
 anlama, görsel üretme, konuşmayı yazıya çevirme ve seslendirme ayrı araçlar
 olmalı. Ücretli kullanım kullanıcı onayı olmadan açılmamalı.
 
 ## 5. E-posta ve hesap bağlantıları
+
+Hesaba bağlanmadan, gönderilmeyen `.eml` taslağı hazırlama/indirme eklenmiştir.
+Son yanıt taslağa alınabilir; kullanıcı konu/alıcı/metni düzenler. Gerçek
+e-posta gönderimi veya hesap işlemi yapılmaz.
 
 OAuth ve en az yetki kullanılmalı; şifre veya erişim token'ı sohbete
 istenmemeli. Önce salt okunur işlevler ve taslak hazırlama; gönderim veya
