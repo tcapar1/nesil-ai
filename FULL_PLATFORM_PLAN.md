@@ -29,6 +29,19 @@ Türkçe öncelikli; web ve mobil uyumlu; kullanıcı hesabı, özel veri alanı
 
 ## Aşama 1 — Hesap ve kullanıcı alanı
 
+### Mevcut teslimat durumu (2026-10-31)
+
+- [x] Supabase e-posta/parola kayıt ve giriş ekranı, çıkış ve token yenileme.
+- [x] Şifre sıfırlama e-postası isteği (e-posta bağlantısının gerçek cihazda tamamlanması henüz doğrulanmadı).
+- [x] Profil görüntüleme/güncelleme; eski hesaplar için profil upsert.
+- [x] Kalıcı sohbet oluşturma, listeleme, mesaj yükleme/kaydetme ve silme.
+- [x] Yeni mesaj sonrası sohbet etkinlik zamanını yenileme.
+- [x] Kullanıcı kontrollü hafıza ekleme, düzenleme ve silme.
+- [x] CI mock testleri Windows ve Ubuntu üzerinde geçti; son commit için yeni CI çalışması sürüyor.
+- [ ] İki ayrı gerçek test hesabıyla RLS izolasyonu ve e-posta akışını staging üzerinde doğrulama.
+- [ ] Şifre sıfırlama bağlantısının dönüş/şifre yenileme ekranı uçtan uca doğrulaması.
+- [ ] Kullanıcı verisi dışa aktarma ve hesap/veri silme talep akışı.
+
 - E-posta/parola kayıt, giriş, çıkış, e-posta doğrulama ve şifre sıfırlama.
 - Oturum yenileme, süresi dolmuş oturum yönetimi, oturumların kapatılması.
 - Profil, görünen ad, dil, tema ve tercih ayarları.
