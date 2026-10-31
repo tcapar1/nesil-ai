@@ -10,18 +10,29 @@ from research_ui import show_research
 from tools_ui import email_tools, voice_tools
 from python_runner import runner_tools
 from supabase_store import create_usage_store
-from access_control import require_access, is_admin_email
+from access_control import require_access
 from supabase_auth import create_auth_client, SupabaseAuthError
 from supabase_data import create_data_store, SupabaseDataError
 from app_service import call_with_limits
 from local_model import ask_local_model
 
 
+def _is_admin_email(secrets, email):
+    """Check the server-side administrator allowlist without importing another module symbol."""
+    configured = secrets.get("NESIL_ADMIN_EMAILS", [])
+    if isinstance(configured, str):
+        configured = configured.replace(";", ",").split(",")
+    if not isinstance(configured, (list, tuple, set)):
+        return False
+    allowed = {str(item).strip().lower() for item in configured if str(item).strip()}
+    return str(email or "").strip().lower() in allowed
+
+
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
 try:
     usage_store = create_usage_store()
     principal = require_access(st, usage_store)
-    is_admin = bool(st.session_state.get('supabase_user_email') and is_admin_email(
+    is_admin = bool(st.session_state.get('supabase_user_email') and _is_admin_email(
         st.secrets, st.session_state.get('supabase_user_email')
     ))
 except (ValueError, OSError, sqlite3.Error):
