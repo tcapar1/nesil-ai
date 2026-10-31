@@ -46,3 +46,14 @@
 .settings-card .primary{width:100%}
 .settings-close{position:absolute;right:14px;top:12px;background:transparent;border:0;color:var(--muted);font-size:24px}
 @media(max-width:760px){.library-toolbar{align-items:stretch;flex-direction:column}.library-row{align-items:flex-start}.model-bar{flex-wrap:wrap}.model-bar label{display:none}}
+
+
+.conversation-search{width:100%;margin:0 0 10px;padding:9px 10px;background:#111d30;border:1px solid var(--line);border-radius:8px;color:var(--text);font-size:11px;outline:none}
+.conversation-search:focus{border-color:#718bd2}
+.conversation-row{display:flex;align-items:center;gap:3px;margin:1px 0}
+.conversation-row .conversation{flex:1;min-width:0}
+.conversation-actions{display:flex;gap:1px;opacity:.35;transition:opacity .15s}
+.conversation-row:hover .conversation-actions,.conversation-row:focus-within .conversation-actions{opacity:1}
+.conversation-actions button{border:0;background:transparent;color:#91a0b7;padding:5px 4px;border-radius:5px;font-size:12px}
+.conversation-actions button:hover{background:#263852;color:#fff}
+@media(max-width:760px){.conversation-search{display:none}}
