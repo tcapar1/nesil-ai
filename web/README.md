@@ -1,24 +1,28 @@
 # nesilai Web (Cloudflare Pages)
 
-This is a separate static web client. It does not replace the existing Streamlit app or Worker.
+Türkçe öncelikli, mobil uyumlu web istemcisi.
 
-## Current scope
-- Responsive Turkish interface.
-- Supabase email/password sign-in, sign-up and password reset.
-- User-owned conversation list and message persistence through Supabase RLS.
-- Chat UI scaffold. AI generation remains disabled until the existing Worker API is reviewed and a secure chat endpoint is connected.
-- Documents and memory screens are intentionally placeholders until their existing storage/data methods are wired and tested.
+## Entegre edilen istemci özellikleri
+- Supabase e-posta/parola kayıt, giriş, şifre sıfırlama ve kalıcı oturum.
+- Kullanıcıya özel sohbet listesi ve mesaj geçmişi.
+- Composer model seçimi: Groq Edge Function veya yerel Ollama.
+- Belgelerim ekranı: özel Supabase Storage alanına dosya yükleme, listeleme, indirme ve kullanıcı onayıyla silme.
+- Hafıza ekranı: kullanıcının kendi hafıza kayıtlarını ekleme, listeleme ve silme.
+- Türkçe ve mobil uyumlu mevcut görsel tasarım korunmuştur.
 
-## Configure
-1. Copy the project Supabase URL and **publishable** API key into `config.js`.
-2. Never place a Supabase secret/service-role key or model provider key in this folder.
-3. The current production Supabase project must already have the migrations applied. Do not run migrations from this folder.
+## Güvenlik ve sınırlamalar
+- Tarayıcıya yalnızca Supabase publishable key verilir. Service-role ve Groq anahtarları asla istemciye konmaz.
+- Belge alanı için `202610310003_private_document_storage.sql` ve `202610310005_document_library_index.sql` migration'ları hedef Supabase projesinde uygulanmış olmalıdır. Hafıza tablosu temel şemada bulunur. Migration'ları canlıda uygulamadan önce mevcut şema karşılaştırılmalı ve yedek alınmalıdır.
+- Dosyalar kullanıcı JWT'si, özel bucket ve RLS ile kullanıcı klasörüne yazılır. Şu an belge yükleme/indirme vardır; PDF/DOCX/XLSX içerik çıkarma ve sohbet bağlamına otomatik aktarma bu web istemcisine henüz port edilmemiştir.
+- Yerel Ollama seçeneği yalnızca aynı bilgisayarda çalışan localhost servisine bağlanır. Ollama'da `OLLAMA_ORIGINS=https://nesilai.pages.dev` (ve yerel test için uygun localhost origin) yapılandırılmalıdır. Bu bağlantı Cloudflare'den uzaktaki bilgisayara proxy değildir; tarayıcı kullanıcısının kendi cihazındaki Ollama'ya erişir.
+- Web araması, derin araştırma, gerçek görsel üretimi, güvenli Python sandbox ve yönetici/kota paneli henüz tamamlanmamıştır; eski Streamlit kodu doğrudan web istemcisine taşınmamıştır.
+- Dosya silme kullanıcı onayı ister. Sohbet ve hafıza verileri Supabase RLS ile korunmalıdır.
 
 ## Cloudflare Pages
-Connect this repository and select branch `feature/pages-web-20261101`.
 - Framework preset: None
-- Build command: leave empty
+- Build command: boş
 - Build output directory: `web`
-- Root directory: leave empty
+- Root directory: boş
+- Preview branch: `integration/full-platform-20261101`
 
-Deploy only to the generated `*.pages.dev` preview. Do not bind a custom domain or change the existing Worker routes until tests pass.
+Canlı domain veya production branch ayarı, tüm testler ve kullanıcı kabulü tamamlanmadan değiştirilmez.
