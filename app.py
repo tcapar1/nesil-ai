@@ -4,7 +4,7 @@ import json
 import sqlite3
 import streamlit as st
 from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, select_context
-from document_worker import extract_bounded
+from document_worker import extract_bounded, UploadData
 from model_client import ask_model, read_api_key
 from research_ui import show_research
 from tools_ui import email_tools, voice_tools
@@ -193,6 +193,17 @@ with st.sidebar:
                     try:
                         file_bytes = file_store.download(saved["path"])
                         st.download_button("Dosyayı indir", file_bytes, file_name=saved["name"], key="download_saved_" + saved["path"])
+                        if st.button("Belge analiz alanına al", key="analyze_saved_" + saved["path"]):
+                            with st.spinner("Kayıtlı belge okunuyor…"):
+                                extracted = extract_bounded(UploadData(saved["name"], file_bytes))
+                            st.session_state.documents = [item for item in st.session_state.documents if item.name != saved["name"]]
+                            st.session_state.documents.append(extracted)
+                            st.session_state.file_names = [item.name for item in st.session_state.documents if item.text]
+                            if extracted.text:
+                                st.success("Belge analiz alanına eklendi.")
+                            else:
+                                st.warning(extracted.scope)
+                            st.rerun()
                         if st.button("Kitaplıktan sil", key="delete_saved_" + saved["path"]):
                             file_store.delete(saved["path"])
                             st.rerun()
