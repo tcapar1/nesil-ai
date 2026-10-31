@@ -369,6 +369,17 @@ sorguyla doğrulandı; uygulamadan önce migration yedeği ve staging doğrulama
 gereklidir. Dosyalar yükleme sırasında ayrıca analiz edilmez; kullanıcı dosyayı
 seçerek mevcut belge çıkarma akışına göndermelidir.
 
+### Belge kataloğu ve klasörleme
+
+`nesil_documents` tablosu, dosya içeriklerini değil özel Storage nesnelerinin
+kullanıcıya ait meta verilerini tutar. Kullanıcılar dosya adına göre arama
+yapabilir, klasöre göre filtreleyebilir, klasör ve etiketleri düzenleyebilir,
+belgeleri indirebilir/silebilir veya analiz alanına aktarabilir. Kayıtlar
+kullanıcı JWT'si ve RLS ile korunur. Yeni
+`202610310005_document_library_index.sql` migration dosyası tablo, indeksler,
+RLS politikaları ve asgari izinleri ekler. **Canlı Supabase'e uygulanmadı.**
+Önce staging ortamında iki kullanıcıyla izolasyon testi gereklidir.
+
 ### Sohbet organizasyonu
 
 Sohbet geçmişi başlığa göre aranabilir; sohbet başlığı değiştirilebilir,
