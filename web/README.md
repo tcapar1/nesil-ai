@@ -1,4 +1,4 @@
-# NESIL AI Web (Cloudflare Pages)
+# NESILAI Web (Cloudflare Pages)
 
 This is a separate static web client. It does not replace the existing Streamlit app or Worker.
 
