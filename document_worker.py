@@ -68,6 +68,8 @@ def extract_bounded(upload, ocr=False, timeout=35):
 def load_saved_documents(file_store, saved_rows, max_files=MAX_FILES, max_total_bytes=MAX_TOTAL_BYTES):
     """Load a bounded batch from a user's private library; never exceed session limits."""
     loaded, skipped, total_bytes = [], [], 0
+    file_limit = max(0, min(int(max_files), MAX_FILES))
+    byte_limit = max(0, min(int(max_total_bytes), MAX_TOTAL_BYTES))
     seen = set()
     for row in saved_rows:
         name = str(row.get("file_name") or "").strip()
@@ -79,15 +81,15 @@ def load_saved_documents(file_store, saved_rows, max_files=MAX_FILES, max_total_
             skipped.append((name, "Aynı adlı belge bu oturumda zaten seçildi."))
             continue
         seen.add(name)
-        if len(loaded) >= max(0, min(int(max_files), MAX_FILES)):
-            skipped.append((name, f"En fazla {MAX_FILES} belge tek seferde yüklenebilir."))
+        if len(loaded) >= file_limit:
+            skipped.append((name, f"En fazla {file_limit} belge tek seferde yüklenebilir."))
             continue
         declared_size = row.get("file_size")
         if isinstance(declared_size, (int, float)) and declared_size > MAX_FILE_BYTES:
             skipped.append((name, "Dosya 10 MB sınırını aşıyor."))
             continue
-        if isinstance(declared_size, (int, float)) and total_bytes + declared_size > min(int(max_total_bytes), MAX_TOTAL_BYTES):
-            skipped.append((name, "Toplam 20 MB yükleme sınırı aşılacağı için atlandı."))
+        if isinstance(declared_size, (int, float)) and total_bytes + declared_size > byte_limit:
+            skipped.append((name, f"Belirlenen toplam yükleme sınırı ({byte_limit} bayt) aşılacağı için atlandı."))
             continue
         try:
             raw = file_store.download(path)
@@ -97,7 +99,7 @@ def load_saved_documents(file_store, saved_rows, max_files=MAX_FILES, max_total_
             if len(raw) > MAX_FILE_BYTES:
                 skipped.append((name, "Dosya 10 MB sınırını aşıyor."))
                 continue
-            if total_bytes + len(raw) > min(int(max_total_bytes), MAX_TOTAL_BYTES):
+            if total_bytes + len(raw) > byte_limit:
                 skipped.append((name, "Toplam 20 MB yükleme sınırı aşılacağı için atlandı."))
                 continue
             result = extract_bounded(UploadData(name, raw))
