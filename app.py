@@ -424,16 +424,33 @@ with st.sidebar:
             st.download_button("Kaynak kayıtlarını indir", json.dumps(records, ensure_ascii=False, indent=2), file_name="nesil_ai_kaynaklar.json", mime="application/json")
     st.caption("Sistem komutu, e-posta gönderimi ve bilgisayar kontrolü yoktur. Python Mini kodları yalnızca tarayıcıdaki ayrı çalışma alanında çalışır.")
 
-main_col, rail_col = st.columns([3.2, 1.0], gap='large')
+main_col, rail_col = st.columns([3.05, 1.05], gap='medium')
 with main_col:
     display_name = ((st.session_state.get("supabase_profile") or {}).get("display_name") or "")
-    provider_label = "Yerel Ollama" if mode in ("Kodlama yardımcısı", "Matematik öğretmeni") else "Groq bulut modeli"
-    show_dashboard_header(display_name, provider_label)
+    provider_label = "Ollama (Yerel)" if mode in ("Kodlama yardımcısı", "Matematik öğretmeni") else "Groq"
+    mode_label = "Yönetici" if is_admin else "Standart Ücretsiz" if principal != "public" else "Misafir"
+    show_dashboard_header(display_name or st.session_state.get("supabase_user_email", ""), provider_label, mode_label)
     show_quick_actions()
     if st.session_state.file_names:
         st.info("Dosya kesitleri hazır: " + ", ".join(st.session_state.file_names))
     if not st.session_state.messages:
-        st.markdown("**Örnek görevler**\n- Bir iş sürecini adım adım planla.\n- Yüklediğim belgenin önemli noktalarını açıkla.\n- Araştırmayı açarak güncel bilgileri kaynaklarıyla karşılaştır.")
+        st.markdown(
+            '<div class="nd-chat-welcome"><div class="nd-chat-bubble">◌</div><div><strong>Yeni Sohbet</strong>'
+            '<p>Nesil AI ile görüşmeye başlayın. Aşağıdaki örneklerden birini seçebilirsiniz.</p></div></div>',
+            unsafe_allow_html=True,
+        )
+        prompts = [
+            ("📄", "Bu belgeyi özetle.", "Yüklediğim belgeyi ana başlıkları ve önemli noktalarıyla özetle."),
+            ("🔎", "Güncel bir konuda araştırma yap.", "Bu konuda güncel ve güvenilir kaynaklarla araştırma yap."),
+            ("📊", "Excel dosyasını analiz et.", "Yüklediğim Excel dosyasını analiz et ve önemli bulguları açıkla."),
+            ("💡", "Bir plan hazırla.", "Hedefime ulaşmak için uygulanabilir, adım adım bir plan hazırla."),
+        ]
+        sample_cols = st.columns(2, gap="small")
+        for sample_col, (symbol, label_text, question) in zip(sample_cols * 2, prompts):
+            with sample_col:
+                if st.button(symbol + "  " + label_text, key="sample_" + label_text, use_container_width=True):
+                    st.session_state.dashboard_quick_prompt = question
+                    st.rerun()
     for message_index, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
