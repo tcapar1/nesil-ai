@@ -4,7 +4,7 @@ import json
 import sqlite3
 import streamlit as st
 from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, select_context, find_document_matches
-from document_worker import extract_bounded, UploadData
+from document_worker import extract_bounded, UploadData, load_saved_documents
 from model_client import ask_model, read_api_key
 from research_ui import show_research
 from tools_ui import email_tools, voice_tools
@@ -242,6 +242,23 @@ with st.sidebar:
             )
             if not docs:
                 st.caption("Bu aramada belge bulunamadı.")
+            else:
+                st.caption(f"{len(docs)} kayıt listeleniyor. Tek seferde en fazla 5 dosya ve toplam 20 MB analiz alanına alınır.")
+                if st.button("📚 Bu listedeki belgeleri topluca analiz alanına yükle", use_container_width=True, key="load_saved_document_batch"):
+                    try:
+                        with st.spinner("Belgeler indiriliyor ve okunuyor…"):
+                            batch_loaded, batch_skipped = load_saved_documents(file_store, docs)
+                        st.session_state.documents = batch_loaded
+                        st.session_state.file_names = [item.name for item in batch_loaded]
+                        st.session_state.saved_document_load_skipped = batch_skipped
+                        st.rerun()
+                    except Exception:
+                        st.warning("Belge grubu yüklenemedi. Dosya erişimini ve bağlantıyı kontrol edin.")
+                skipped = st.session_state.get("saved_document_load_skipped", [])
+                if skipped:
+                    with st.expander(f"Yüklenemeyen/atlanmış dosyalar ({len(skipped)})"):
+                        for skipped_name, reason in skipped:
+                            st.caption(f"{skipped_name}: {reason}")
             for saved in docs:
                 object_path = saved["object_path"]
                 title = saved["file_name"]
