@@ -40,8 +40,8 @@ class SavedDocumentBatchTests(unittest.TestCase):
         loaded, skipped = load_saved_documents(store, rows, max_files=2, max_total_bytes=5)
         self.assertEqual([item.name for item in loaded], ["a.txt"])
         self.assertEqual(len(skipped), 2)
-        self.assertIn("20 MB", skipped[0][1])
-        self.assertIn("2 dosya", skipped[1][1])
+        self.assertIn("Toplam", skipped[0][1])
+        self.assertIn("2 belge", skipped[1][1])
 
     @patch("document_worker.extract_bounded")
     def test_duplicate_names_are_not_loaded_twice(self, extract):
