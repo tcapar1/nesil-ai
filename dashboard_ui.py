@@ -51,7 +51,7 @@ def show_quick_actions():
     cols = st.columns(4, gap="small")
     for col, (icon, title, caption, prompt) in zip(cols, cards):
         with col:
-            if st.button(f"{icon}  {title}\\n{caption}  →", key="feature_" + title, use_container_width=True):
+            if st.button(f"{icon}  {title}\n{caption}  →", key="feature_" + title, use_container_width=True):
                 st.session_state.dashboard_quick_prompt = prompt
                 st.rerun()
 
