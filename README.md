@@ -371,6 +371,15 @@ seçerek mevcut belge çıkarma akışına göndermelidir.
 
 ### Belge kataloğu ve klasörleme
 
+Kayıtlı belgeyi analiz alanına aldıktan sonra açık belgelerin içeriğinde yerel
+arama yapılabilir. Sonuçlar PDF sayfası, Word paragrafı/tablosu veya Excel
+sayfası/satırı gibi çıkarılmış kaynak konumunu gösterir. Arama işlemi ücretsiz
+yerel Python koduyla yapılır; harici embedding veya ücretli API çağrısı yoktur.
+Bu aşamada içerik araması yalnızca analiz alanına yüklenmiş/açık belgelerde
+çalışır; tüm özel kitaplık üzerinde kalıcı tam metin indeks henüz yoktur.
+
+### Belge kataloğu ve klasörleme
+
 `nesil_documents` tablosu, dosya içeriklerini değil özel Storage nesnelerinin
 kullanıcıya ait meta verilerini tutar. Kullanıcılar dosya adına göre arama
 yapabilir, klasöre göre filtreleyebilir, klasör ve etiketleri düzenleyebilir,
