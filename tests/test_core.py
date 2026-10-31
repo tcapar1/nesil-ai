@@ -7,7 +7,7 @@ import zipfile
 from unittest.mock import patch
 
 from file_reader import extract_file, select_context, FileResult, MAX_FILE_BYTES, MAX_TEXT, find_document_matches
-from model_client import ask_model, read_api_key, build_messages, retry_seconds
+from model_client import ask_model, read_api_key, build_messages, retry_seconds, available_groq_models
 
 
 class Upload:
@@ -27,6 +27,16 @@ class CoreTests(unittest.TestCase):
         def fail(*a, **k):
             self.fail("Unexpected network call")
         self.assertFalse(ask_model("test", "test", [], opener=fail).ok)
+
+    def test_groq_model_allowlist_drives_payload_without_catalog_or_inference_probe(self):
+        with patch.dict(os.environ, {"NESIL_GROQ_MODELS": "openai/gpt-oss-120b, llama-3.3-70b-versatile,invalid model,openai/gpt-oss-120b"}):
+            self.assertEqual(available_groq_models(), ["openai/gpt-oss-120b", "llama-3.3-70b-versatile"])
+            def fake(request, **kwargs):
+                self.assertEqual(json.loads(request.data)["model"], "llama-3.3-70b-versatile")
+                return io.BytesIO(b'{"choices":[{"message":{"content":"ok"}}],"usage":{"total_tokens":2}}')
+            result = ask_model("test", "Genel", [], api_key="test-only", model="llama-3.3-70b-versatile", opener=fake)
+            self.assertTrue(result.ok)
+            self.assertFalse(ask_model("test", "Genel", [], api_key="test-only", model="not-allowed", opener=lambda *a, **k: self.fail("not allowlisted" )).ok)
 
     def test_secrets_failure_falls_back_to_environment(self):
         class BrokenSecrets:

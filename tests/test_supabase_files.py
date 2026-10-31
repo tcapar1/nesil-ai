@@ -1,4 +1,5 @@
 import json
+import hashlib
 import unittest
 from unittest.mock import patch
 
@@ -41,6 +42,14 @@ class SupabaseFileTests(unittest.TestCase):
         self.assertEqual(opener.call_args_list[0].args[0].get_header("X-upsert"), "true")
         with self.assertRaises(SupabaseFileError):
             self.store.upload("rapor.pdf", b"same bytes", operation_id="bad-id")
+
+    def test_describe_upload_is_network_free_and_has_full_content_digest(self):
+        raw = b"stable file contents"
+        with patch("urllib.request.urlopen") as opener:
+            item = self.store.describe_upload("report.pdf", raw, "a" * 32)
+        opener.assert_not_called()
+        self.assertEqual(item["sha256"], hashlib.sha256(raw).hexdigest())
+        self.assertIn("a" * 32 + hashlib.sha256(raw).hexdigest(), item["path"])
 
     def test_upload_rejects_unsupported_and_oversized_files(self):
         with self.assertRaises(SupabaseFileError):

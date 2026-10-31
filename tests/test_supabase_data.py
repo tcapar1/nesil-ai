@@ -150,6 +150,35 @@ class SupabaseDataTests(unittest.TestCase):
         self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
         self.assertEqual(row["id"], "doc-1")
 
+    def test_begin_upload_and_finish_use_user_jwt_rpc(self):
+        response = FakeResponse(b'{"operation_id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","state":"pending"}')
+        with patch("urllib.request.urlopen", return_value=response) as opener:
+            result = self.store.begin_document_upload("a" * 32, "user-1/a_report.pdf", "report.pdf", 10,
+                                                     "application/pdf", "b" * 64)
+        request = opener.call_args.args[0]
+        self.assertTrue(request.full_url.endswith("/rest/v1/rpc/nesil_begin_document_upload"))
+        self.assertEqual(request.get_header("Authorization"), "Bearer user-jwt")
+        self.assertEqual(json.loads(request.data)["p_sha256"], "b" * 64)
+        self.assertEqual(result["state"], "pending")
+
+    def test_pending_document_operations_are_owner_scoped_and_bounded(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
+            self.store.list_pending_document_operations(limit=1000)
+        request = opener.call_args.args[0]
+        self.assertIn("nesil_document_operations", request.full_url)
+        self.assertIn("state=eq.pending", request.full_url)
+        self.assertIn("limit=100", request.full_url)
+        self.assertEqual(request.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_begin_upload_rejects_path_digest_and_operation_before_network(self):
+        with patch("urllib.request.urlopen") as opener:
+            for args in (("a" * 32, "other-user/x.pdf", "x.pdf", 10, "application/pdf", "b" * 64),
+                         ("bad", "user-1/x.pdf", "x.pdf", 10, "application/pdf", "b" * 64),
+                         ("a" * 32, "user-1/x.pdf", "x.pdf", 10, "application/pdf", "short")):
+                with self.assertRaises(SupabaseDataError):
+                    self.store.begin_document_upload(*args)
+        opener.assert_not_called()
+
     def test_add_document_retry_returns_existing_row_without_overwriting_metadata(self):
         existing = [{"id": "doc-1", "object_path": "user-1/op_report.pdf", "file_name": "renamed.pdf", "tags": ["important"]}]
         with patch("urllib.request.urlopen", side_effect=[FakeResponse(b"[]"), FakeResponse(json.dumps(existing).encode())]) as opener:

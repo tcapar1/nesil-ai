@@ -3,7 +3,7 @@ import html
 import streamlit as st
 
 
-def show_dashboard_header(display_name, provider_label, mode_label):
+def show_dashboard_header(display_name, provider_label, mode_label, security_label="Kişisel oturum"):
     name = html.escape((display_name or "").strip() or "Hoş geldiniz")
     st.markdown(
         """
@@ -12,7 +12,7 @@ def show_dashboard_header(display_name, provider_label, mode_label):
           <span>Sohbet et, belgeleri incele, araştır, üret.</span></div></div>
           <div class="nd-models">
             <div class="nd-model nd-model-primary"><b>ϟ</b><span><strong>""" + html.escape(provider_label) + """</strong><small>Aktif model sağlayıcısı</small></span></div>
-            <div class="nd-model nd-model-secure"><b>✓</b><span><strong>Güvenli Alan</strong><small>Kişisel çalışma alanınız</small></span></div>
+            <div class="nd-model nd-model-secure"><b>✓</b><span><strong>""" + html.escape(security_label) + """</strong><small>Kayıt ve gizlilik kapsamı</small></span></div>
           </div>
           <div class="nd-account"><div class="nd-avatar">""" + (name[:1].upper() if name else "N") + """</div>
             <div><strong>""" + name + """</strong><small>""" + html.escape(mode_label) + """</small></div></div>
@@ -58,7 +58,8 @@ def show_quick_actions():
 
 def show_dashboard_rail(data_store, data_error_type):
     with st.container():
-        st.markdown('<div class="nd-rail-heading"><strong>Son Belgelerim</strong><span>Hesabınıza özel</span></div>', unsafe_allow_html=True)
+        scope_label = "Hesabınıza özel" if data_store else "Bu oturumda"
+        st.markdown('<div class="nd-rail-heading"><strong>Son Belgelerim</strong><span>' + html.escape(scope_label) + '</span></div>', unsafe_allow_html=True)
         docs = []
         if data_store:
             try:

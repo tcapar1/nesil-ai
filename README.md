@@ -351,9 +351,11 @@ Geliştirme dalında profil okuma/güncelleme, kalıcı sohbet oluşturma/listel
 mesajları kaydetme/yükleme, sohbet silme ve kullanıcı kontrollü hafıza ekleme,
 düzenleme ve silme akışları uygulanmıştır. Kullanıcı verisi çağrıları oturumun
 JWT'siyle yapılır; erişim RLS sahiplik politikalarıyla sınırlandırılır.
-Service-role anahtarı bu istemci akışında kullanılmaz. CI'da mock testleri
-bulunur; gerçek Supabase Auth e-posta teslimi ve iki ayrı kullanıcı arasındaki
-uçtan uca izolasyon staging ortamında ayrıca denenmelidir.
+Service-role anahtarı bu istemci akışında kullanılmaz. CI'da mock testlerinin
+yanında ayrı, geçici bir Supabase yığını kurularak iki sentetik kullanıcı
+gerçek Auth JWT'leriyle sohbet, hafıza, belge metadata'sı ve Storage RLS
+sınırlarını test eder. Gerçek e-posta gönderimi bu yerel testte kullanılmaz.
+Masaüstünde Docker/Supabase CLI yoksa bu senaryo CI'da çalışır.
 
 ### Özel belge kitaplığı
 
@@ -410,3 +412,31 @@ Canlı Supabase projesinin tabloları ve politikaları salt okunur denetlendi.
 Migration geçmişi boş olduğu için şema/migration uzlaştırması tamamlanmış
 sayılmaz. Supabase Auth leaked-password protection ayarı da yayın öncesi
 etkinleştirilmeli ve doğrulanmalıdır.
+
+### Kurtarılabilir belge işlemleri ve test
+
+`202610310007_document_operation_recovery.sql` kullanıcıya ait upload/delete
+işlemlerini işlem günlüğüne alır. Dosya Storage'a yazılmadan önce kayıt açılır;
+metadata yalnızca upload tamamlanınca aynı RPC işlemi içinde oluşturulur.
+Silmede günlük kaydı önce açılır, Storage kaldırılır, ardından metadata
+silinerek işlem tamamlanır. Ağ veya veritabanı hatasında günlük `pending` kalır;
+arayüz aynı dosya yeniden seçildiğinde upload'ı veya Storage silmeyi güvenle
+tekrarlar. Bu migration üretim veritabanına uygulanmamıştır.
+
+GitHub Actions, Windows ve Ubuntu'da Python testlerini çalıştırır. Ek Ubuntu
+işi geçici yerel Supabase kurulumu açar, pgTAP ile Auth trigger/RLS kurallarını
+sınar ve iki sentetik kullanıcıyı gerçek Auth JWT'leriyle uçtan uca dener.
+Bu testler gerçek e-posta veya Groq/Ollama inference çağrısı yapmaz. Üretim
+Supabase şeması ve kullanıcı verileri bu CI kapsamına girmez.
+
+Groq model seçici `NESIL_GROQ_MODELS` virgülle ayrılmış izin listesini okur
+(ör. `openai/gpt-oss-120b,llama-3.3-70b-versatile`). Sağlayıcı kataloğu veya
+inference denemesiyle otomatik kota harcanmaz; model erişilebilirliği ancak
+kullanıcı gerçek bir soru gönderince doğrulanır. Ollama model listesi de
+kullanıcının yenileme düğmesiyle yerel `/api/tags` üzerinden alınır.
+
+`202610310008_hash_usage_subjects.sql`, kota tablolarında daha önce tutulmuş
+principal değerlerini SHA-256 biçimine dönüştürür. Günlük toplam istek/token
+sayaçlarını birleştirerek korur ve kullanım olaylarını aynı anahtara taşır.
+Kota kimliği değişikliği nedeniyle uygulama sürümü ile bu migration aynı
+kontrollü yayın adımında uygulanmalıdır; migration burada çalıştırılmadı.

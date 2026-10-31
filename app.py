@@ -5,6 +5,7 @@ import sqlite3
 import streamlit as st
 from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, select_context, find_document_matches
 from document_worker import extract_bounded, UploadData, load_saved_documents
+from document_operations import save_document, delete_document, recover_upload, recover_delete
 from model_client import ask_model, read_api_key
 from research_ui import show_research
 from tools_ui import email_tools, voice_tools, report_tools
@@ -18,7 +19,7 @@ from app_service import call_with_limits
 from local_model import ask_local_model, local_model_configured, model_for_mode, list_local_models
 from ui_theme import apply_theme
 from dashboard_ui import show_dashboard_header, show_quick_actions, show_dashboard_rail
-from model_client import MODEL
+from model_client import available_groq_models
 
 
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
@@ -229,7 +230,8 @@ with st.sidebar:
             st.warning(str(exc))
     mode = st.selectbox("Çalışma biçimi", ["Genel yardımcı", "Görev planlama", "Kodlama yardımcısı", "Matematik öğretmeni", "Belge ve rapor yardımcısı"])
     local_models = st.session_state.get("ollama_models", [])
-    model_options = ["Akıllı seçim", "Groq · " + MODEL]
+    groq_models = available_groq_models()
+    model_options = ["Akıllı seçim"] + ["Groq · " + name for name in groq_models]
     if local_model_configured():
         model_options.extend("Ollama · " + name for name in local_models)
         model_options.append("Ollama · otomatik")
@@ -239,6 +241,7 @@ with st.sidebar:
         and mode in ("Kodlama yardımcısı", "Matematik öğretmeni")
     )
     local_model_override = model_choice.removeprefix("Ollama · ") if model_choice.startswith("Ollama · ") and model_choice != "Ollama · otomatik" else None
+    groq_model_override = model_choice.removeprefix("Groq · ") if model_choice.startswith("Groq · ") else groq_models[0]
     if local_model_configured():
         if st.button("Ollama modellerini yenile", use_container_width=True):
             with st.spinner("Yerel model listesi kontrol ediliyor…"):
@@ -256,7 +259,10 @@ with st.sidebar:
     elif use_local_model:
         st.caption("Yerel model: " + (local_model_override or model_for_mode(mode)) + " · bilgisayarınızdaki Ollama")
     else:
-        st.caption("Groq modeli: " + MODEL + " · ortak ücretsiz kota uygulanır")
+        if read_api_key(st.secrets):
+            st.caption("Groq modeli: " + groq_model_override + " · ücretsiz kota sınırları uygulanır; model erişimi ilk gerçek istekte doğrulanır")
+        else:
+            st.caption("Groq API anahtarı yapılandırılmamış; Groq isteği gönderilmeyecek.")
     ocr_enabled = st.checkbox("Taranmış PDF ve görseller için yerel OCR", value=False, key="ocr_enabled",
                               help="Sunucuda OCR paketi ve Tesseract gerekir; ilk 20 sayfa/görsel işlenir.")
     note = st.text_area("Sohbet notu", max_chars=2000, key=f"note_{st.session_state.note_generation}", help="Amaç, tercihler ve önemli kararlar. Her soruda modele gönderilir; sohbet temizlenince silinir.")
@@ -356,8 +362,9 @@ with st.sidebar:
                     )
                     if confirm_file_delete and st.button("Silmeyi onayla", key="confirm_delete_saved_" + saved["id"]):
                         try:
-                            file_store.delete(object_path)
-                            data_store.delete_document(saved["id"])
+                            import uuid
+                            operation_id = uuid.uuid4().hex
+                            delete_document(file_store, data_store, operation_id, saved["id"], object_path)
                             st.session_state.pop("confirm_delete_file_" + saved["id"], None)
                             if st.session_state.get("saved_file_download", {}).get("path") == object_path:
                                 st.session_state.pop("saved_file_download", None)
@@ -408,24 +415,59 @@ with st.sidebar:
         else:
             try:
                 saved_count = 0
-                operation_id = st.session_state.get("document_upload_operation_id")
-                if not operation_id:
-                    import uuid
-                    operation_id = uuid.uuid4().hex
-                    st.session_state.document_upload_operation_id = operation_id
+                pending_operations = data_store.list_pending_document_operations()
                 for upload in uploads:
-                    stored = file_store.upload(upload.name, upload.getvalue(), operation_id=operation_id)
-                    try:
-                        data_store.add_document(stored["path"], stored["name"], stored["size"], stored["content_type"])
-                    except SupabaseDataError:
-                        file_store.delete(stored["path"])
-                        raise
+                    raw = upload.getvalue()
+                    import hashlib, uuid
+                    digest = hashlib.sha256(raw).hexdigest()
+                    pending = next((op for op in pending_operations
+                                    if op.get("operation_kind") == "upload"
+                                    and op.get("sha256") == digest
+                                    and op.get("file_name") == upload.name
+                                    and int(op.get("file_size", 0)) == len(raw)), None)
+                    operation_id = pending.get("operation_id") if pending else uuid.uuid4().hex
+                    save_document(file_store, data_store, upload.name, raw, operation_id)
+                    pending_operations = [op for op in pending_operations if op.get("operation_id") != operation_id]
                     saved_count += 1
                 st.success(f"{saved_count} dosya özel kitaplığınıza kaydedildi.")
-                st.session_state.pop("document_upload_operation_id", None)
                 st.rerun()
             except (SupabaseFileError, SupabaseDataError) as exc:
                 st.error(f"{saved_count} dosya kaydedildi; kalan dosyalar kaydedilemedi: {exc}")
+    if file_store and data_store:
+        try:
+            pending_operations = data_store.list_pending_document_operations()
+            if pending_operations:
+                with st.expander(f"Kurtarma bekleyen belge işlemleri ({len(pending_operations)})", expanded=True):
+                    st.caption("Yarım kalan işlemler günlüğe yazılır. Silme tekrar denenebilir; yükleme için aynı dosyayı yeniden seçin.")
+                    import hashlib
+                    selected_by_digest = {hashlib.sha256(item.getvalue()).hexdigest(): item for item in (uploads or [])}
+                    for operation in pending_operations:
+                        operation_id = operation["operation_id"]
+                        label = "Yükleme: " if operation["operation_kind"] == "upload" else "Silme: "
+                        st.write(label + operation["file_name"])
+                        if operation["operation_kind"] == "delete":
+                            if st.button("Silme işlemini uzlaştır", key="recover_doc_" + operation_id):
+                                try:
+                                    recover_delete(file_store, data_store, operation)
+                                    st.success("Silme tamamlandı.")
+                                    st.rerun()
+                                except (SupabaseFileError, SupabaseDataError) as exc:
+                                    st.warning("İşlem beklemede kaldı ve daha sonra yeniden denenebilir: " + str(exc))
+                        else:
+                            selected = selected_by_digest.get(operation.get("sha256", ""))
+                            if selected and selected.name == operation["file_name"] and selected.size == int(operation["file_size"]):
+                                if st.button("Aynı dosyayla yüklemeyi kurtar", key="recover_doc_" + operation_id):
+                                    try:
+                                        raw = selected.getvalue()
+                                        recover_upload(file_store, data_store, operation, selected.name, raw)
+                                        st.success("Dosya ve katalog kaydı uzlaştırıldı.")
+                                        st.rerun()
+                                    except (SupabaseFileError, SupabaseDataError) as exc:
+                                        st.warning("İşlem beklemede kaldı ve daha sonra yeniden denenebilir: " + str(exc))
+                            else:
+                                st.caption("Kurtarma için dosyanın aynısını seçin.")
+        except SupabaseDataError as exc:
+            st.caption("Kurtarma günlüğü kullanılamıyor. Yeni belge kurtarma işlemleri için recovery migration gerekir: " + str(exc))
     for result in st.session_state.documents:
         with st.expander(f"{result.name} — {result.status}"):
             st.write(result.scope)
@@ -502,9 +544,12 @@ with main_col:
     account_email = st.session_state.get("supabase_user_email", "")
     account_handle = account_email.split("@", 1)[0].replace(".", " ").replace("_", " ").replace("-", " ").strip().title()
     display_name = profile_name or account_handle or "Hoş geldiniz"
-    provider_label = "Ollama · " + (local_model_override or model_for_mode(mode)) if use_local_model else "Groq · " + MODEL
     mode_label = "Yönetici" if is_admin else "Standart Ücretsiz" if principal != "public" else "Misafir"
-    show_dashboard_header(display_name, provider_label, mode_label)
+    provider_label = ("Ollama · " + (local_model_override or model_for_mode(mode)) if use_local_model else
+                      "Groq · " + groq_model_override if read_api_key(st.secrets) else "Groq ayarı eksik")
+    security_label = ("Misafir oturumu" if principal == "public" else
+                      "Supabase hesabı" if st.session_state.get("supabase_user_id") else "Korumalı oturum")
+    show_dashboard_header(display_name, provider_label, mode_label, security_label)
     show_quick_actions()
     if st.session_state.file_names:
         st.info("Dosya kesitleri hazır: " + ", ".join(st.session_state.file_names))
@@ -606,7 +651,7 @@ with main_col:
                         result = call_with_limits(
                             ask_model, usage_store, principal, prompt, mode,
                             history, context, request_web, api_key=read_api_key(st.secrets),
-                            note="" if reviewing else note,
+                            note="" if reviewing else note, model=groq_model_override,
                         )
                 st.markdown(result.text)
                 if result.ok:

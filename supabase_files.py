@@ -41,7 +41,7 @@ class SupabaseFileStore:
         if not self.url.startswith("https://") and not self.url.startswith(("http://localhost", "http://127.0.0.1")):
             raise SupabaseFileError("Supabase adresi HTTPS olmalı.")
 
-    def _request(self, method, path, body=None, content_type=None, extra_headers=None):
+    def _request(self, method, path, body=None, content_type=None, extra_headers=None, allow_missing_object=False):
         headers = {"apikey": self.public_key, "Authorization": "Bearer " + self.access_token,
                    "Accept": "application/json", "User-Agent": "NesilAI/1.3"}
         if extra_headers:
@@ -65,6 +65,8 @@ class SupabaseFileStore:
                 reason = str(payload.get("message") or payload.get("error_description") or payload.get("error") or "")[:180]
             except Exception:
                 reason = ""
+            if allow_missing_object and exc.code == 404 and "object" in reason.casefold() and "not found" in reason.casefold():
+                return b""
             if exc.code == 401:
                 raise SupabaseFileError("Oturumun süresi dolmuş. Yeniden giriş yapın.") from None
             if exc.code == 403:
@@ -82,6 +84,14 @@ class SupabaseFileStore:
         return f"{self.user_id}/{safe}"
 
     def upload(self, filename, raw, operation_id=None):
+        description = self.describe_upload(filename, raw, operation_id)
+        path = "/storage/v1/object/" + BUCKET + "/" + "/".join(
+            urllib.parse.quote(part, safe="._-") for part in description["path"].split("/")
+        )
+        self._request("POST", path, raw, description["content_type"], {"X-upsert": "true"})
+        return description
+
+    def describe_upload(self, filename, raw, operation_id):
         name = str(filename or "").replace("\\", "/").split("/")[-1].strip()
         ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
         if not name or len(name) > 180 or ext not in ALLOWED_EXTENSIONS:
@@ -93,14 +103,13 @@ class SupabaseFileStore:
         if operation_id is not None and (not isinstance(operation_id, str) or not re.fullmatch(r"[a-f0-9]{32}", operation_id)):
             raise SupabaseFileError("Dosya işlemi kimliği geçersiz.")
         operation_id = operation_id or uuid.uuid4().hex
-        digest = hashlib.sha256(raw).hexdigest()[:16]
+        digest = hashlib.sha256(raw).hexdigest()
         object_name = f"{self.user_id}/{operation_id}{digest}_{name}"
-        path = "/storage/v1/object/" + BUCKET + "/" + "/".join(urllib.parse.quote(p, safe="._-") for p in object_name.split("/"))
         # Python's platform MIME database omits or disagrees on office types
         # (notably PPTX on Windows); keep Storage headers identical everywhere.
         mime = MIME_TYPES.get(ext) or mimetypes.guess_type(name)[0] or "application/octet-stream"
-        self._request("POST", path, raw, mime, {"X-upsert": "true"})
-        return {"name": name, "path": object_name, "size": len(raw), "content_type": mime}
+        return {"name": name, "path": object_name, "size": len(raw), "content_type": mime,
+                "sha256": digest, "operation_id": operation_id}
 
     def list_files(self, limit=100):
         payload = {"prefix": self.user_id + "/", "limit": max(1, min(int(limit), 100)), "offset": 0,
@@ -128,7 +137,8 @@ class SupabaseFileStore:
 
     def delete(self, object_path):
         self._validate_path(object_path)
-        self._request("DELETE", "/storage/v1/object/" + BUCKET, {"prefixes": [object_path]}, "application/json")
+        self._request("DELETE", "/storage/v1/object/" + BUCKET, {"prefixes": [object_path]},
+                      "application/json", allow_missing_object=True)
 
     def _validate_path(self, object_path):
         if not isinstance(object_path, str) or not object_path.startswith(self.user_id + "/") or ".." in object_path.split("/"):

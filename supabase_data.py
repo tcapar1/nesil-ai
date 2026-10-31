@@ -54,6 +54,65 @@ class SupabaseDataStore:
         except (UnicodeDecodeError, json.JSONDecodeError):
             raise SupabaseDataError("Veritabanından geçersiz yanıt alındı.") from None
 
+    def _rpc(self, function, payload):
+        url = self.url + "/rest/v1/rpc/" + function
+        headers = {"apikey": self.anon_key, "Authorization": "Bearer " + self.access_token,
+                   "Accept": "application/json", "Content-Type": "application/json",
+                   "User-Agent": "NesilAI/1.3"}
+        request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                raw = response.read(1_000_001)
+            if len(raw) > 1_000_000:
+                raise SupabaseDataError("Veritabanı yanıtı izin verilen boyutu aşıyor.")
+            return json.loads(raw.decode("utf-8")) if raw else None
+        except urllib.error.HTTPError as exc:
+            if exc.code == 401:
+                raise SupabaseDataError("Oturumun süresi dolmuş. Yeniden giriş yapın.") from None
+            if exc.code == 403:
+                raise SupabaseDataError("Bu işlem için erişim izniniz yok.") from None
+            raise SupabaseDataError("Belge işlemi günlüğüne yazılamadı. Gerekli migration uygulanmış mı kontrol edin.") from None
+        except (urllib.error.URLError, TimeoutError):
+            raise SupabaseDataError("Supabase veritabanına erişilemiyor.") from None
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise SupabaseDataError("Veritabanından geçersiz yanıt alındı.") from None
+
+    def begin_document_upload(self, operation_id, object_path, file_name, file_size, content_type, sha256):
+        if not isinstance(operation_id, str) or len(operation_id) != 32 or any(c not in "0123456789abcdef" for c in operation_id):
+            raise SupabaseDataError("Dosya işlemi kimliği geçersiz.")
+        if not isinstance(object_path, str) or not object_path.startswith(self.user_id + "/") or ".." in object_path.split("/"):
+            raise SupabaseDataError("Belge yolu bu hesaba ait değil.")
+        if not isinstance(file_name, str) or not file_name.strip() or len(file_name) > 180:
+            raise SupabaseDataError("Dosya adı geçersiz.")
+        if not isinstance(file_size, int) or not 1 <= file_size <= 10 * 1024 * 1024:
+            raise SupabaseDataError("Dosya boyutu geçersiz.")
+        if not isinstance(sha256, str) or len(sha256) != 64 or any(c not in "0123456789abcdef" for c in sha256):
+            raise SupabaseDataError("Dosya özeti geçersiz.")
+        return self._rpc("nesil_begin_document_upload", {
+            "p_operation_id": operation_id, "p_object_path": object_path,
+            "p_file_name": file_name.strip(), "p_file_size": file_size,
+            "p_content_type": (content_type or "application/octet-stream")[:120], "p_sha256": sha256,
+        })
+
+    def finish_document_upload(self, operation_id):
+        return self._rpc("nesil_finish_document_upload", {"p_operation_id": operation_id})
+
+    def begin_document_delete(self, operation_id, document_id):
+        if not isinstance(operation_id, str) or len(operation_id) != 32 or any(c not in "0123456789abcdef" for c in operation_id):
+            raise SupabaseDataError("Dosya işlemi kimliği geçersiz.")
+        if not isinstance(document_id, str) or not document_id or len(document_id) > 64:
+            raise SupabaseDataError("Belge kimliği geçersiz.")
+        return self._rpc("nesil_begin_document_delete", {"p_operation_id": operation_id, "p_document_id": document_id})
+
+    def finish_document_delete(self, operation_id):
+        return self._rpc("nesil_finish_document_delete", {"p_operation_id": operation_id})
+
+    def list_pending_document_operations(self, limit=50):
+        query = urllib.parse.urlencode({"select": "operation_id,operation_kind,object_path,file_name,file_size,content_type,sha256,document_id,created_at",
+                                        "state": "eq.pending", "order": "created_at.asc",
+                                        "limit": str(max(1, min(int(limit), 100)))})
+        return self._request("GET", "nesil_document_operations", query)
+
     def get_profile(self):
         q = urllib.parse.urlencode({"select": "user_id,display_name,created_at,updated_at",
                                     "user_id": "eq." + self.user_id, "limit": "1"})

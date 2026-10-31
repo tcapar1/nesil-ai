@@ -15,7 +15,7 @@ class AppTests(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        env = patch.dict(os.environ, {"NESIL_USAGE_DB": str(Path(directory.name) / "usage.db"), "NESIL_USERS_JSON": "{}"})
+        env = patch.dict(os.environ, {"NESIL_USAGE_DB": str(Path(directory.name) / "usage.db"), "NESIL_USERS_JSON": "{}", "GROQ_API_KEY": ""})
         env.start()
         self.addCleanup(env.stop)
 
@@ -30,6 +30,14 @@ class AppTests(unittest.TestCase):
         self.assertEqual(len(app.selectbox[0].options), 5)
         self.assertEqual(app.selectbox[1].label, "Model sağlayıcısı")
         self.assertEqual(app.radio[0].label, "Tema")
+
+    def test_guest_header_reports_unconfigured_provider_and_session_scope(self):
+        app = self.start()
+        rendered = "\n".join(item.value for item in app.markdown)
+        self.assertIn("Groq ayarı eksik", rendered)
+        self.assertIn("Misafir oturumu", rendered)
+        self.assertIn("Bu oturumda", rendered)
+        self.assertNotIn("Güvenli Alan", rendered)
 
     def test_dark_theme_preference_is_kept_in_session(self):
         app = self.start()

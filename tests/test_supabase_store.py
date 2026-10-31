@@ -1,4 +1,5 @@
 import json
+import hashlib
 import unittest
 from unittest.mock import patch
 
@@ -33,6 +34,13 @@ class SupabaseStoreTests(unittest.TestCase):
         self.assertTrue(request.full_url.endswith("/rest/v1/rpc/nesil_reserve_usage"))
         self.assertEqual(request.get_header("Apikey"), "server-only-test-key")
         self.assertEqual(json.loads(request.data)["p_estimated_tokens"], 321)
+        self.assertEqual(json.loads(request.data)["p_subject_hash"], hashlib.sha256(b"user-hash").hexdigest())
+
+    def test_rpc_failure_classification_identifies_schema_and_permission_roots(self):
+        from supabase_store import _rpc_failure_category
+        self.assertEqual(_rpc_failure_category(404, "PGRST202"), "rpc_missing_or_signature_mismatch")
+        self.assertEqual(_rpc_failure_category(403, "42501"), "rpc_permission_denied")
+        self.assertEqual(_rpc_failure_category(503, ""), "supabase_backend_error")
 
     def test_finish_uses_request_id_only(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b"null")) as opener:

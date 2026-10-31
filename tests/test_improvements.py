@@ -218,6 +218,14 @@ class ImprovementsTests(unittest.TestCase):
         self.assertEqual(result.text, "Günlük kullanım sınırına ulaşıldı.")
         provider.assert_not_called()
 
+    def test_provider_exception_always_closes_reserved_quota(self):
+        store, provider = Mock(), Mock(side_effect=RuntimeError("transport details must stay private"))
+        store.reserve.return_value = {"request_id": "reservation"}
+        result = call_with_limits(provider, store, "a", "soru", "Genel", [], "", False, api_key="fake", note="")
+        self.assertFalse(result.ok)
+        self.assertIn("beklenmedik", result.text)
+        store.finish.assert_called_once_with({"request_id": "reservation"}, 0, 0)
+
     def test_login_throttle_survives_session_reset(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "usage.db"
