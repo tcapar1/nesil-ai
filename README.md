@@ -348,9 +348,26 @@ Geliştirme dalında profil okuma/güncelleme, kalıcı sohbet oluşturma/listel
 mesajları kaydetme/yükleme, sohbet silme ve kullanıcı kontrollü hafıza ekleme,
 düzenleme ve silme akışları uygulanmıştır. Kullanıcı verisi çağrıları oturumun
 JWT'siyle yapılır; erişim RLS sahiplik politikalarıyla sınırlandırılır.
-Service-role anahtarı bu istemci akışında kullanılmaz. Bu özellikler CI'da
-mock testlerle doğrulanmıştır; gerçek Supabase Auth e-posta teslimi ve iki ayrı
-kullanıcı arasındaki uçtan uca izolasyon staging ortamında ayrıca denenmelidir.
+Service-role anahtarı bu istemci akışında kullanılmaz. CI'da mock testleri
+bulunur; gerçek Supabase Auth e-posta teslimi ve iki ayrı kullanıcı arasındaki
+uçtan uca izolasyon staging ortamında ayrıca denenmelidir.
+
+### Özel belge kitaplığı
+
+Geliştirme dalında `supabase_files.py`, kullanıcının JWT'siyle özel Supabase
+Storage alanına dosya kaydetme, listeleme, indirme ve silme işlemlerini sağlar.
+Dosyalar herkese açık olmayan `nesil-user-files` bucket'ında, kullanıcı UUID'si
+ile başlayan nesne yollarında tutulur. Storage RLS politikaları yalnızca
+kullanıcının kendi klasörüne erişmesine izin verir. Dosya başına 10 MB, tek
+yüklemede en fazla 5 dosya ve toplam 20 MB sınırı uygulanır. Service-role
+anahtarı kullanılmaz.
+
+Yeni `202610310003_private_document_storage.sql` migration dosyası bucket ve
+Storage sahiplik politikalarını oluşturur. **Bu migration canlı Supabase
+projesine henüz uygulanmadı.** Canlı projede bucket'ın bulunmadığı salt okunur
+sorguyla doğrulandı; uygulamadan önce migration yedeği ve staging doğrulaması
+gereklidir. Dosyalar yükleme sırasında ayrıca analiz edilmez; kullanıcı dosyayı
+seçerek mevcut belge çıkarma akışına göndermelidir.
 
 Canlı Supabase projesinin tabloları ve politikaları salt okunur denetlendi.
 Migration geçmişi boş olduğu için şema/migration uzlaştırması tamamlanmış
