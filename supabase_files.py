@@ -13,6 +13,16 @@ BUCKET = "nesil-user-files"
 MAX_FILE_BYTES = 10 * 1024 * 1024
 ALLOWED_EXTENSIONS = {"txt", "md", "json", "py", "log", "csv", "pdf", "docx", "xlsx", "xlsm", "pptx",
                       "png", "jpg", "jpeg", "tif", "tiff", "bmp"}
+MIME_TYPES = {
+    "txt": "text/plain", "md": "text/markdown", "json": "application/json",
+    "py": "text/x-python", "log": "text/plain", "csv": "text/csv", "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+    "tif": "image/tiff", "tiff": "image/tiff", "bmp": "image/bmp",
+}
 
 
 class SupabaseFileError(ValueError):
@@ -86,7 +96,9 @@ class SupabaseFileStore:
         digest = hashlib.sha256(raw).hexdigest()[:16]
         object_name = f"{self.user_id}/{operation_id}{digest}_{name}"
         path = "/storage/v1/object/" + BUCKET + "/" + "/".join(urllib.parse.quote(p, safe="._-") for p in object_name.split("/"))
-        mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
+        # Python's platform MIME database omits or disagrees on office types
+        # (notably PPTX on Windows); keep Storage headers identical everywhere.
+        mime = MIME_TYPES.get(ext) or mimetypes.guess_type(name)[0] or "application/octet-stream"
         self._request("POST", path, raw, mime, {"X-upsert": "true"})
         return {"name": name, "path": object_name, "size": len(raw), "content_type": mime}
 
