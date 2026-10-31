@@ -5,13 +5,13 @@ do $$
 begin
   create temporary table nesil_usage_daily_hashed on commit drop as
   select usage_day,
-         case when subject_hash='global' then 'global'
+         case when subject_hash='global' or subject_hash ~ '^[0-9a-f]{64}$' then subject_hash
               else encode(digest(subject_hash,'sha256'),'hex') end as subject_hash,
          sum(requests)::integer as requests,
          sum(tokens)::bigint as tokens
   from public.nesil_usage_daily
   group by usage_day,
-           case when subject_hash='global' then 'global'
+           case when subject_hash='global' or subject_hash ~ '^[0-9a-f]{64}$' then subject_hash
                 else encode(digest(subject_hash,'sha256'),'hex') end;
 
   delete from public.nesil_usage_daily;
@@ -21,4 +21,5 @@ end $$;
 
 update public.nesil_usage_events
 set subject_hash=encode(digest(subject_hash,'sha256'),'hex')
-where subject_hash <> 'global';
+where subject_hash <> 'global'
+  and subject_hash !~ '^[0-9a-f]{64}$';
