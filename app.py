@@ -10,7 +10,7 @@ from research_ui import show_research
 from tools_ui import email_tools, voice_tools
 from python_runner import runner_tools
 from supabase_store import create_usage_store
-from access_control import require_access, is_admin_email
+from nesil_access_gate import require_access, is_admin_email
 from supabase_auth import create_auth_client, SupabaseAuthError
 from supabase_data import create_data_store, SupabaseDataError
 from supabase_files import create_file_store, SupabaseFileError
