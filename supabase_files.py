@@ -83,9 +83,11 @@ class SupabaseFileStore:
             raise SupabaseFileError("Dosya listesi geçersiz yanıt verdi.") from None
         if not isinstance(rows, list):
             raise SupabaseFileError("Dosya listesi beklenen biçimde değil.")
-        return [{"name": str(row.get("name", "")), "id": row.get("id"),
-                 "metadata": row.get("metadata") or {}, "created_at": row.get("created_at")}
-                for row in rows if isinstance(row, dict) and row.get("name")]
+        return [{"name": str(row.get("name", "")).split("_", 1)[-1],
+                 "path": self.user_id + "/" + str(row.get("name", "")),
+                 "id": row.get("id"), "metadata": row.get("metadata") or {},
+                 "created_at": row.get("created_at")}
+                for row in rows if isinstance(row, dict) and row.get("name") and row.get("id")]
 
     def download(self, object_path):
         self._validate_path(object_path)
