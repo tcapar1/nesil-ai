@@ -1,11 +1,12 @@
 # Nesil AI
 
-Türkçe öncelikli Streamlit asistanı. Bu sürüm sohbet, beş çalışma modu,
-belgelerden sınırlı metin çıkarma, isteğe bağlı Groq web araştırması ve TXT
-sohbet indirme sunar. Ayrıca gönderilmeyen e-posta taslağı indirme ve
-tarayıcıdaki yerel seslerle son yanıtı dinleme araçları vardır. Bilgisayar
-kontrolü, sunucuda kullanıcı kodu çalıştırma, gerçek e-posta gönderimi, görsel üretimi ve sesi
-yazıya çevirme henüz uygulanmamıştır; `ROADMAP.md` aşamalarını izleyin.
+Türkçe öncelikli Streamlit asistanı. Beş çalışma modu, Groq ve isteğe bağlı
+Ollama model seçimi, sohbet yönetimi, sınırlı belge çıkarımı ve isteğe bağlı
+araştırma sunar. Belgelerden metin arama, Excel/CSV grafik önizlemesi, yerel
+OCR, PPTX ve görsel okuma, yanıtı sürdürme/yeniden üretme ve Word/PDF rapor
+indirme akışları da bulunur. Dış sistemlere e-posta gönderimi, sunucuda tam
+Python çalıştırma, görsel üretimi ve görsel anlama modeli bu sürümde yoktur.
+Kapsam ve aşama sınırları için `FULL_PLATFORM_PLAN.md` dosyasına bakın.
 
 ## Kurulum
 
@@ -26,9 +27,12 @@ mevcut hesabın kullanım ve ücret politikası geçerlidir.
 - En fazla 5 dosya, dosya başına 10 MB ve toplam 20 MB.
 - PDF: ilk 200 sayfaya kadar metin; isteğe bağlı yerel OCR ilk 20 taranmış sayfada denenir.
 - DOCX: ana metin ve sınırlı tablolar. Metin kutuları ve görseller okunmaz.
+- PPTX: ilk 200 slayttaki metin ve tablolar. Gömülü görsel metinleri OCR seçeneği açıksa ayrıca okunabilir.
+- PNG/JPEG/TIFF/BMP: yalnızca OCR seçeneği açıkken yerel Tesseract ile okunur; görseller uzaktaki OCR servisine gönderilmez.
 - Excel: ilk 20 sayfa, en fazla 2.000 satır/50 sütun; sayfa başına yaklaşık
   60.000 karakter. Kayıtlı formül sonuçları okunur, formüller hesaplanmaz.
 - CSV: en fazla 5.000 satır/50 sütun. UTF-8 beklenir.
+- CSV/Excel grafik önizlemesi ilk 500 satıra ve çıkarılabilen sayısal sütunlara dayanır; finansal doğruluk veya formül hesaplama garantisi değildir.
 - Dosya başına en fazla 240.000 karakter saklanır; her soruda tüm dosyalara
   pay ayıran yerel sözcük eşleştirmeyle en fazla 10.000 karakter seçilir.
   Örtüşen kesitlerde sayfa/paragraf/satır veya karakter konumu korunur.
@@ -256,7 +260,7 @@ kodlar içindir. [Sınırlar, veri akışı ve lisans](PYTHON_MINI.md).
 python -m unittest discover -s tests -v
 ```
 
-Windows/Python 3.12 üzerinde 98 test doğrulandı. Ayrıca yerel Tesseract
+Windows/Python 3.12 üzerinde son doğrulamada 195 test doğrulandı. Ayrıca yerel Tesseract
 ve pypdfium2 ile bir sayfalık sentetik taranmış PDF'deki `98765 TL` ifadesi
 ayrı süreç üzerinden okundu. OCR, harfleri yanlış okuyabilir; gerçek belge
 ve farklı tarama kaliteleriyle ayrıca değerlendirilmelidir.
@@ -275,12 +279,11 @@ Değişiklikler geliştirme dalında tutulur; canlı uygulamaya otomatik geçiş
 
 ## Yerel yapay zekâ: Ollama (isteğe bağlı)
 
-Kodlama ve Matematik Öğretmeni modları isteğe bağlı yerel Ollama sağlayıcısını kullanır.
-Genel yardımcı, görev planlama ve belge modları mevcut Groq sağlayıcısını kullanmaya devam eder.
-app.py içindeki yönlendirme kodlama ve matematik modlarını doğrudan Ollama'ya gönderir;
-diğer modlar mevcut kota denetimli Groq akışında kalır. Yerel sağlayıcı etkin değilse
-kodlama/matematik modları açıkça yapılandırma uyarısı verir. Bu modlarda internet
-araştırması devre dışıdır; Groq'a otomatik geçiş veya ücretli yedek çağrı yapılmaz.
+Kodlama ve Matematik Öğretmeni modları, yerel sağlayıcı etkinse varsayılan olarak
+Ollama'yı kullanır. Model sağlayıcısı seçicisinden desteklenen diğer modlar için de
+Ollama seçilebilir; kurulu modeller kullanıcı eylemiyle listelenir. Yerel sağlayıcı
+etkin değilse yerel seçimler kullanılamaz. Ollama modunda internet araştırması
+devre dışıdır; Groq'a otomatik geçiş veya ücretli yedek çağrı yapılmaz.
 
 Windows bilgisayarında Ollama kurulduktan sonra PowerShell'de:
 
@@ -348,9 +351,11 @@ Geliştirme dalında profil okuma/güncelleme, kalıcı sohbet oluşturma/listel
 mesajları kaydetme/yükleme, sohbet silme ve kullanıcı kontrollü hafıza ekleme,
 düzenleme ve silme akışları uygulanmıştır. Kullanıcı verisi çağrıları oturumun
 JWT'siyle yapılır; erişim RLS sahiplik politikalarıyla sınırlandırılır.
-Service-role anahtarı bu istemci akışında kullanılmaz. CI'da mock testleri
-bulunur; gerçek Supabase Auth e-posta teslimi ve iki ayrı kullanıcı arasındaki
-uçtan uca izolasyon staging ortamında ayrıca denenmelidir.
+Service-role anahtarı bu istemci akışında kullanılmaz. CI'da mock testlerinin
+yanında ayrı, geçici bir Supabase yığını kurularak iki sentetik kullanıcı
+gerçek Auth JWT'leriyle sohbet, hafıza, belge metadata'sı ve Storage RLS
+sınırlarını test eder. Gerçek e-posta gönderimi bu yerel testte kullanılmaz.
+Masaüstünde Docker/Supabase CLI yoksa bu senaryo CI'da çalışır.
 
 ### Özel belge kitaplığı
 
@@ -407,3 +412,31 @@ Canlı Supabase projesinin tabloları ve politikaları salt okunur denetlendi.
 Migration geçmişi boş olduğu için şema/migration uzlaştırması tamamlanmış
 sayılmaz. Supabase Auth leaked-password protection ayarı da yayın öncesi
 etkinleştirilmeli ve doğrulanmalıdır.
+
+### Kurtarılabilir belge işlemleri ve test
+
+`202610310007_document_operation_recovery.sql` kullanıcıya ait upload/delete
+işlemlerini işlem günlüğüne alır. Dosya Storage'a yazılmadan önce kayıt açılır;
+metadata yalnızca upload tamamlanınca aynı RPC işlemi içinde oluşturulur.
+Silmede günlük kaydı önce açılır, Storage kaldırılır, ardından metadata
+silinerek işlem tamamlanır. Ağ veya veritabanı hatasında günlük `pending` kalır;
+arayüz aynı dosya yeniden seçildiğinde upload'ı veya Storage silmeyi güvenle
+tekrarlar. Bu migration üretim veritabanına uygulanmamıştır.
+
+GitHub Actions, Windows ve Ubuntu'da Python testlerini çalıştırır. Ek Ubuntu
+işi geçici yerel Supabase kurulumu açar, pgTAP ile Auth trigger/RLS kurallarını
+sınar ve iki sentetik kullanıcıyı gerçek Auth JWT'leriyle uçtan uca dener.
+Bu testler gerçek e-posta veya Groq/Ollama inference çağrısı yapmaz. Üretim
+Supabase şeması ve kullanıcı verileri bu CI kapsamına girmez.
+
+Groq model seçici `NESIL_GROQ_MODELS` virgülle ayrılmış izin listesini okur
+(ör. `openai/gpt-oss-120b,llama-3.3-70b-versatile`). Sağlayıcı kataloğu veya
+inference denemesiyle otomatik kota harcanmaz; model erişilebilirliği ancak
+kullanıcı gerçek bir soru gönderince doğrulanır. Ollama model listesi de
+kullanıcının yenileme düğmesiyle yerel `/api/tags` üzerinden alınır.
+
+`202610310008_hash_usage_subjects.sql`, kota tablolarında daha önce tutulmuş
+principal değerlerini SHA-256 biçimine dönüştürür. Günlük toplam istek/token
+sayaçlarını birleştirerek korur ve kullanım olaylarını aynı anahtara taşır.
+Kota kimliği değişikliği nedeniyle uygulama sürümü ile bu migration aynı
+kontrollü yayın adımında uygulanmalıdır; migration burada çalıştırılmadı.

@@ -1,8 +1,9 @@
 import json
+import hashlib
 import unittest
 from unittest.mock import patch
 
-from supabase_store import SupabaseStoreError, SupabaseUsageStore, create_usage_store
+from supabase_store import SupabaseStoreError, SupabaseUsageLimit, SupabaseUsageStore, create_usage_store
 
 
 class FakeResponse:
@@ -33,6 +34,13 @@ class SupabaseStoreTests(unittest.TestCase):
         self.assertTrue(request.full_url.endswith("/rest/v1/rpc/nesil_reserve_usage"))
         self.assertEqual(request.get_header("Apikey"), "server-only-test-key")
         self.assertEqual(json.loads(request.data)["p_estimated_tokens"], 321)
+        self.assertEqual(json.loads(request.data)["p_subject_hash"], hashlib.sha256(b"user-hash").hexdigest())
+
+    def test_rpc_failure_classification_identifies_schema_and_permission_roots(self):
+        from supabase_store import _rpc_failure_category
+        self.assertEqual(_rpc_failure_category(404, "PGRST202"), "rpc_missing_or_signature_mismatch")
+        self.assertEqual(_rpc_failure_category(403, "42501"), "rpc_permission_denied")
+        self.assertEqual(_rpc_failure_category(503, ""), "supabase_backend_error")
 
     def test_finish_uses_request_id_only(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b"null")) as opener:
@@ -88,6 +96,40 @@ class SupabaseStoreTests(unittest.TestCase):
                 self.store.login_attempt()
         self.assertNotIn("private-key", str(caught.exception))
         self.assertNotIn("user-data", str(caught.exception))
+
+    def test_expected_quota_rejections_are_usage_limits(self):
+        import io
+        import urllib.error
+
+        cases = (
+            ("NESIL_DAILY_LIMIT", "reserve"),
+            ("NESIL_MINUTE_LIMIT", "reserve"),
+            ("NESIL_PROVIDER_COOLDOWN", "reserve"),
+            ("NESIL_LOGIN_LIMIT", "login_attempt"),
+        )
+        for code, operation_name in cases:
+            with self.subTest(code=code):
+                error = urllib.error.HTTPError(
+                    "https://project.supabase.co/rest/v1/rpc/private",
+                    400, "quota", {}, io.BytesIO(json.dumps({"message": code}).encode()),
+                )
+                with patch("urllib.request.urlopen", side_effect=error):
+                    with self.assertRaises(SupabaseUsageLimit):
+                        operation = getattr(self.store, operation_name)
+                        operation("user-hash", 100) if operation_name == "reserve" else operation()
+
+    def test_invalid_reservation_is_not_misreported_as_quota_exhaustion(self):
+        import io
+        import urllib.error
+
+        error = urllib.error.HTTPError(
+            "https://project.supabase.co/rest/v1/rpc/private",
+            400, "invalid", {}, io.BytesIO(b'{"message":"NESIL_INVALID_RESERVATION"}'),
+        )
+        with patch("urllib.request.urlopen", side_effect=error):
+            with self.assertRaises(SupabaseStoreError) as caught:
+                self.store.reserve("user-hash", 100)
+        self.assertNotIsInstance(caught.exception, SupabaseUsageLimit)
 
 
 if __name__ == "__main__":

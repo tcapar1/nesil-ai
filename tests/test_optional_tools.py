@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 from email_draft import build_draft
 from voice import MAX_SPEECH, speech_html, render_speech
+from report_export import MAX_REPORT_CHARS, make_docx, make_pdf
 
 
 class EmailTests(unittest.TestCase):
@@ -73,6 +74,35 @@ class VoiceTests(unittest.TestCase):
         result = subprocess.run([shutil.which("node"), str(runner)], input=script,
                                 text=True, encoding="utf-8", capture_output=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+class ReportExportTests(unittest.TestCase):
+    def test_word_report_contains_turkish_answer(self):
+        from docx import Document
+
+        content = make_docx("İş planı\nİkinci bölüm")
+        self.assertTrue(content.startswith(b"PK"))
+        path = Path(__file__).with_name("_temporary_report_test.docx")
+        try:
+            path.write_bytes(content)
+            document = Document(path)
+            self.assertIn("İş planı", "\n".join(p.text for p in document.paragraphs))
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_pdf_export_requires_unicode_font_and_produces_pdf(self):
+        from pypdf import PdfReader
+
+        content = make_pdf("Türkçe karakterler: ığüşöç İŞ")
+        self.assertTrue(content.startswith(b"%PDF"))
+        import io
+        extracted = "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(content)).pages)
+        self.assertIn("Türkçe karakterler", extracted)
+
+    def test_empty_and_oversized_reports_are_rejected(self):
+        for text in ("", "  ", "x" * (MAX_REPORT_CHARS + 1)):
+            with self.subTest(length=len(text)), self.assertRaises(ValueError):
+                make_docx(text)
 
 
 if __name__ == "__main__":

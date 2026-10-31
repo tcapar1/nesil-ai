@@ -1,4 +1,5 @@
 import json
+import hashlib
 import unittest
 from unittest.mock import patch
 
@@ -29,11 +30,40 @@ class SupabaseFileTests(unittest.TestCase):
         self.assertTrue(result["path"].startswith("user-123/"))
         self.assertEqual(result["name"], "rapor.pdf")
 
+    def test_upload_retry_with_same_operation_is_idempotent(self):
+        operation_id = "a" * 32
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"{}")) as opener:
+            first = self.store.upload("rapor.pdf", b"same bytes", operation_id=operation_id)
+            second = self.store.upload("rapor.pdf", b"same bytes", operation_id=operation_id)
+            changed = self.store.upload("rapor.pdf", b"changed bytes", operation_id=operation_id)
+        self.assertEqual(first["path"], second["path"])
+        self.assertNotEqual(first["path"], changed["path"])
+        self.assertEqual(opener.call_count, 3)
+        self.assertEqual(opener.call_args_list[0].args[0].get_header("X-upsert"), "true")
+        with self.assertRaises(SupabaseFileError):
+            self.store.upload("rapor.pdf", b"same bytes", operation_id="bad-id")
+
+    def test_describe_upload_is_network_free_and_has_full_content_digest(self):
+        raw = b"stable file contents"
+        with patch("urllib.request.urlopen") as opener:
+            item = self.store.describe_upload("report.pdf", raw, "a" * 32)
+        opener.assert_not_called()
+        self.assertEqual(item["sha256"], hashlib.sha256(raw).hexdigest())
+        self.assertIn("a" * 32 + hashlib.sha256(raw).hexdigest(), item["path"])
+
     def test_upload_rejects_unsupported_and_oversized_files(self):
         with self.assertRaises(SupabaseFileError):
             self.store.upload("script.exe", b"x")
         with self.assertRaises(SupabaseFileError):
             self.store.upload("large.pdf", b"x" * (10 * 1024 * 1024 + 1))
+
+    def test_upload_accepts_pptx_and_raster_image_types(self):
+        for name, mime in (("slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+                           ("scan.png", "image/png")):
+            with self.subTest(name=name), patch("urllib.request.urlopen", return_value=FakeResponse(b"{}")) as opener:
+                result = self.store.upload(name, b"test")
+                self.assertEqual(result["content_type"], mime)
+                self.assertEqual(opener.call_args.args[0].get_header("Content-type"), mime)
 
     def test_list_returns_only_object_rows_with_user_scoped_paths(self):
         body = json.dumps([{"name": "abc_rapor.pdf", "id": "object-id", "metadata": {"size": 9}}]).encode()

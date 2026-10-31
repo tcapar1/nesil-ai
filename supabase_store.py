@@ -1,12 +1,36 @@
 """Supabase-backed atomic usage store; credentials remain server-side."""
 import json
+import hashlib
+import logging
 import os
 import urllib.error
 import urllib.request
+from usage_limits import UsageLimit
 
 
 class SupabaseStoreError(ValueError):
     pass
+
+
+class SupabaseUsageLimit(UsageLimit):
+    """A recognized quota rejection returned by an atomic Supabase RPC."""
+
+
+def _rpc_failure_category(status, code):
+    code = str(code or "").upper()
+    if code in {"PGRST202", "42883"}:
+        return "rpc_missing_or_signature_mismatch"
+    if code == "42501":
+        return "rpc_permission_denied"
+    if code in {"PGRST301", "PGRST302"} or status in (401, 403):
+        return "service_auth_or_grant_failure"
+    if code == "57014":
+        return "database_statement_timeout"
+    if status == 429:
+        return "api_rate_limit"
+    if status >= 500:
+        return "supabase_backend_error"
+    return "rpc_rejected"
 
 
 class SupabaseUsageStore:
@@ -40,6 +64,14 @@ class SupabaseUsageStore:
                 message = data.get("message", "") if isinstance(data, dict) else ""
             except Exception:
                 message = ""
+            category = _rpc_failure_category(exc.code, data.get("code") if isinstance(data, dict) else "")
+            logging.getLogger("nesil.usage").error(
+                "usage_rpc_error function=%s status=%d category=%s", name, exc.code, category
+            )
+            if category == "rpc_missing_or_signature_mismatch":
+                raise SupabaseStoreError("Supabase kota fonksiyonu bulunamadı veya imzası uyuşmuyor. Migration ve RPC parametrelerini kontrol edin.") from None
+            if category == "rpc_permission_denied":
+                raise SupabaseStoreError("Supabase kota fonksiyonunun veritabanı izinleri yetersiz.") from None
             messages = {
                 "NESIL_PROVIDER_COOLDOWN": "Sağlayıcı bekleme süresi devam ediyor.",
                 "NESIL_MINUTE_LIMIT": "Ortak ücretsiz dakika kotası doldu. Bir dakika sonra yeniden deneyin.",
@@ -48,15 +80,23 @@ class SupabaseUsageStore:
                 "NESIL_INVALID_RESERVATION": "Kullanım kotası isteği geçersiz.",
             }
             if message in messages:
-                raise SupabaseStoreError(messages[message]) from None
+                error_type = SupabaseUsageLimit if message in {
+                    "NESIL_PROVIDER_COOLDOWN",
+                    "NESIL_MINUTE_LIMIT",
+                    "NESIL_DAILY_LIMIT",
+                    "NESIL_LOGIN_LIMIT",
+                } else SupabaseStoreError
+                raise error_type(messages[message]) from None
             raise SupabaseStoreError("Supabase kullanım kaydı başarısız. Ayarlar ve SQL migration kontrol edilmeli.") from None
         except (urllib.error.URLError, TimeoutError, ValueError):
+            logging.getLogger("nesil.usage").error("usage_rpc_transport_or_response_error function=%s", name)
             raise SupabaseStoreError("Supabase hizmetine erişilemiyor. Model isteği gönderilmedi.") from None
 
     def reserve(self, subject, estimated_tokens, daily_requests=500, daily_tokens=150000,
                 user_requests=100, now=None, minute_requests=20, minute_tokens=7500):
         result = self._rpc("nesil_reserve_usage", {
-            "p_subject_hash": str(subject)[:128], "p_estimated_tokens": int(estimated_tokens),
+            "p_subject_hash": hashlib.sha256(str(subject).encode("utf-8")).hexdigest(),
+            "p_estimated_tokens": int(estimated_tokens),
             "p_daily_requests": int(daily_requests), "p_daily_tokens": int(daily_tokens),
             "p_user_requests": int(user_requests), "p_minute_requests": int(minute_requests),
             "p_minute_tokens": int(minute_tokens),

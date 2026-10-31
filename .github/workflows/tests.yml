@@ -22,3 +22,39 @@ jobs:
           node-version: '22'
       - run: python -m pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
+  supabase-local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.0.0-beta.17
+      - run: supabase init --force
+      - name: Avoid the hosted runner PostgreSQL port
+        run: python -c "from pathlib import Path; import re; p=Path('supabase/config.toml'); s=p.read_text(); s,n=re.subn(r'(?ms)(^\\[db\\]\\s*.*?^port\\s*=\\s*)54322\\b', r'\\g<1>55432', s, count=1); assert n == 1, 'expected local db port setting'; p.write_text(s)"
+      - name: Disable local email confirmation for synthetic Auth users
+        run: python -c "from pathlib import Path; p=Path('supabase/config.toml'); s=p.read_text(); p.write_text(s.replace('enable_confirmations = true','enable_confirmations = false'))"
+      - run: supabase start -x studio,logflare,vector,edge-runtime,postgres-meta,supavisor,realtime,imgproxy
+      - run: supabase test db
+      - name: Export ephemeral local API settings
+        run: |
+          python - <<'PY'
+          import os, shlex, subprocess
+          values = {}
+          output = subprocess.check_output(['supabase', 'status', '-o', 'env'], text=True)
+          for line in output.splitlines():
+              if '=' not in line:
+                  continue
+              key, value = line.split('=', 1)
+              parsed = shlex.split(value)
+              values[key] = parsed[0] if parsed else ''
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env:
+              env.write('API_URL=' + values['API_URL'] + '\n')
+              env.write('ANON_KEY=' + values['ANON_KEY'] + '\n')
+              env.write('NESIL_LOCAL_SUPABASE_TEST=1\n')
+          PY
+      - run: python -m unittest discover -s tests -p test_supabase_local_integration.py -v

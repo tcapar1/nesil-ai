@@ -1,6 +1,7 @@
 """Optional local Ollama provider for coding and mathematics modes."""
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 
@@ -17,12 +18,33 @@ def local_model_configured():
     return os.environ.get("NESIL_LOCAL_MODEL_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _model_for_mode(mode):
+def model_for_mode(mode):
     if mode == "Kodlama yardımcısı":
         return os.environ.get("NESIL_OLLAMA_CODING_MODEL", CODING_MODEL)
     if mode == "Matematik öğretmeni":
         return os.environ.get("NESIL_OLLAMA_MATH_MODEL", MATH_MODEL)
-    raise ValueError("Yerel model yalnızca kodlama ve matematik modlarında kullanılabilir.")
+    return os.environ.get("NESIL_OLLAMA_GENERAL_MODEL", MATH_MODEL)
+
+
+def list_local_models():
+    """Read installed model names from Ollama without sending user content."""
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+    if not base_url.startswith(("http://", "https://")):
+        return [], "OLLAMA_BASE_URL geçerli bir HTTP(S) adresi değil."
+    request = urllib.request.Request(base_url + "/api/tags", headers={"User-Agent": "NesilAI/1.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=4) as response:
+            raw = response.read(262145)
+        if len(raw) > 262144:
+            return [], "Ollama model listesi boyut sınırını aştı."
+        data = json.loads(raw.decode("utf-8"))
+        models = data.get("models", []) if isinstance(data, dict) else []
+        names = [item.get("name") for item in models if isinstance(item, dict)]
+        return [name for name in names if isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9_.:/-]{1,120}", name)], ""
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return [], "Ollama bağlantısı kurulamadı. Yerel hizmetin çalıştığını kontrol edin."
+    except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+        return [], "Ollama geçersiz bir model listesi döndürdü."
 
 
 def _system_prompt(mode):
@@ -37,6 +59,12 @@ def _system_prompt(mode):
             "küçük ve test edilebilir değişiklik öner. Dosya değiştirmen istendiğinde "
             "önce etkilenecek dosyaları ve riskleri belirt. Çalıştırmadığın testleri "
             "geçti diye sunma. Kod bloklarında dil belirt."
+        )
+    if mode != "Matematik öğretmeni":
+        return base + (
+            " Genel yardımcısın. Konu ne olursa olsun Türkçe, açık ve bağlama uygun yanıt ver. "
+            "Belge kesitlerinin kapsamını aşma; güncel bilgi veya kaynak gerektiren sorularda "
+            "internete erişimin olmadığını açıkla."
         )
     return base + (
         " Matematik öğretmenisin. LGS, TYT ve AYT düzeyinde soruları doğal, akıcı ve doğru Türkçeyle çöz. "
@@ -75,7 +103,7 @@ def _messages(prompt, mode, history, file_context, note):
     return messages
 
 
-def ask_local_model(prompt, mode, history, file_context="", note=""):
+def ask_local_model(prompt, mode, history, file_context="", note="", model_override=None):
     if not local_model_configured():
         return ModelResult(
             "Yerel Ollama henüz etkinleştirilmemiş. Bilgisayarında Ollama kurulduktan ve "
@@ -84,7 +112,9 @@ def ask_local_model(prompt, mode, history, file_context="", note=""):
             "bilgisayarındaki Ollama için uygulamayı bilgisayarında çalıştırmalısın."
         )
     try:
-        model = _model_for_mode(mode)
+        model = model_override or model_for_mode(mode)
+        if not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9_.:/-]{1,120}", model):
+            raise ValueError("Yerel model adı geçersiz.")
         messages = _messages(prompt, mode, history, file_context, note)
     except ValueError as exc:
         return ModelResult(str(exc))

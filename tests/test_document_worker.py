@@ -21,7 +21,7 @@ class FakeStore:
 class SavedDocumentBatchTests(unittest.TestCase):
     @patch("document_worker.extract_bounded")
     def test_loads_saved_documents_and_respects_order(self, extract):
-        extract.side_effect = lambda upload: FileResult(upload.name, "metin", "okundu")
+        extract.side_effect = lambda upload, ocr=False: FileResult(upload.name, "metin", "okundu")
         store = FakeStore({"u/a.pdf": b"pdf", "u/b.txt": b"hello"})
         rows = [
             {"file_name": "a.pdf", "object_path": "u/a.pdf", "file_size": 3},
@@ -34,7 +34,7 @@ class SavedDocumentBatchTests(unittest.TestCase):
 
     @patch("document_worker.extract_bounded")
     def test_batch_is_limited_by_file_count(self, extract):
-        extract.side_effect = lambda upload: FileResult(upload.name, "metin", "okundu")
+        extract.side_effect = lambda upload, ocr=False: FileResult(upload.name, "metin", "okundu")
         store = FakeStore({"u/a.txt": b"123", "u/b.txt": b"456", "u/c.txt": b"789"})
         rows = [{"file_name": f"{name}.txt", "object_path": f"u/{name}.txt"} for name in "abc"]
         loaded, skipped = load_saved_documents(store, rows, max_files=2, max_total_bytes=20)
@@ -44,7 +44,7 @@ class SavedDocumentBatchTests(unittest.TestCase):
 
     @patch("document_worker.extract_bounded")
     def test_batch_is_limited_by_total_downloaded_bytes(self, extract):
-        extract.side_effect = lambda upload: FileResult(upload.name, "metin", "okundu")
+        extract.side_effect = lambda upload, ocr=False: FileResult(upload.name, "metin", "okundu")
         store = FakeStore({"u/a.txt": b"123", "u/b.txt": b"456", "u/c.txt": b"789"})
         rows = [{"file_name": f"{name}.txt", "object_path": f"u/{name}.txt"} for name in "abc"]
         loaded, skipped = load_saved_documents(store, rows, max_files=3, max_total_bytes=5)
@@ -55,7 +55,7 @@ class SavedDocumentBatchTests(unittest.TestCase):
 
     @patch("document_worker.extract_bounded")
     def test_duplicate_names_are_not_loaded_twice(self, extract):
-        extract.side_effect = lambda upload: FileResult(upload.name, "metin", "okundu")
+        extract.side_effect = lambda upload, ocr=False: FileResult(upload.name, "metin", "okundu")
         store = FakeStore({"u/a.txt": b"one", "u/b.txt": b"two"})
         rows = [
             {"file_name": "same.txt", "object_path": "u/a.txt"},

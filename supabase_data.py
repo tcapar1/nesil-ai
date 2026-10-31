@@ -54,6 +54,65 @@ class SupabaseDataStore:
         except (UnicodeDecodeError, json.JSONDecodeError):
             raise SupabaseDataError("Veritabanından geçersiz yanıt alındı.") from None
 
+    def _rpc(self, function, payload):
+        url = self.url + "/rest/v1/rpc/" + function
+        headers = {"apikey": self.anon_key, "Authorization": "Bearer " + self.access_token,
+                   "Accept": "application/json", "Content-Type": "application/json",
+                   "User-Agent": "NesilAI/1.3"}
+        request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                raw = response.read(1_000_001)
+            if len(raw) > 1_000_000:
+                raise SupabaseDataError("Veritabanı yanıtı izin verilen boyutu aşıyor.")
+            return json.loads(raw.decode("utf-8")) if raw else None
+        except urllib.error.HTTPError as exc:
+            if exc.code == 401:
+                raise SupabaseDataError("Oturumun süresi dolmuş. Yeniden giriş yapın.") from None
+            if exc.code == 403:
+                raise SupabaseDataError("Bu işlem için erişim izniniz yok.") from None
+            raise SupabaseDataError("Belge işlemi günlüğüne yazılamadı. Gerekli migration uygulanmış mı kontrol edin.") from None
+        except (urllib.error.URLError, TimeoutError):
+            raise SupabaseDataError("Supabase veritabanına erişilemiyor.") from None
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise SupabaseDataError("Veritabanından geçersiz yanıt alındı.") from None
+
+    def begin_document_upload(self, operation_id, object_path, file_name, file_size, content_type, sha256):
+        if not isinstance(operation_id, str) or len(operation_id) != 32 or any(c not in "0123456789abcdef" for c in operation_id):
+            raise SupabaseDataError("Dosya işlemi kimliği geçersiz.")
+        if not isinstance(object_path, str) or not object_path.startswith(self.user_id + "/") or ".." in object_path.split("/"):
+            raise SupabaseDataError("Belge yolu bu hesaba ait değil.")
+        if not isinstance(file_name, str) or not file_name.strip() or len(file_name) > 180:
+            raise SupabaseDataError("Dosya adı geçersiz.")
+        if not isinstance(file_size, int) or not 1 <= file_size <= 10 * 1024 * 1024:
+            raise SupabaseDataError("Dosya boyutu geçersiz.")
+        if not isinstance(sha256, str) or len(sha256) != 64 or any(c not in "0123456789abcdef" for c in sha256):
+            raise SupabaseDataError("Dosya özeti geçersiz.")
+        return self._rpc("nesil_begin_document_upload", {
+            "p_operation_id": operation_id, "p_object_path": object_path,
+            "p_file_name": file_name.strip(), "p_file_size": file_size,
+            "p_content_type": (content_type or "application/octet-stream")[:120], "p_sha256": sha256,
+        })
+
+    def finish_document_upload(self, operation_id):
+        return self._rpc("nesil_finish_document_upload", {"p_operation_id": operation_id})
+
+    def begin_document_delete(self, operation_id, document_id):
+        if not isinstance(operation_id, str) or len(operation_id) != 32 or any(c not in "0123456789abcdef" for c in operation_id):
+            raise SupabaseDataError("Dosya işlemi kimliği geçersiz.")
+        if not isinstance(document_id, str) or not document_id or len(document_id) > 64:
+            raise SupabaseDataError("Belge kimliği geçersiz.")
+        return self._rpc("nesil_begin_document_delete", {"p_operation_id": operation_id, "p_document_id": document_id})
+
+    def finish_document_delete(self, operation_id):
+        return self._rpc("nesil_finish_document_delete", {"p_operation_id": operation_id})
+
+    def list_pending_document_operations(self, limit=50):
+        query = urllib.parse.urlencode({"select": "operation_id,operation_kind,object_path,file_name,file_size,content_type,sha256,document_id,created_at",
+                                        "state": "eq.pending", "order": "created_at.asc",
+                                        "limit": str(max(1, min(int(limit), 100)))})
+        return self._request("GET", "nesil_document_operations", query)
+
     def get_profile(self):
         q = urllib.parse.urlencode({"select": "user_id,display_name,created_at,updated_at",
                                     "user_id": "eq." + self.user_id, "limit": "1"})
@@ -117,7 +176,7 @@ class SupabaseDataStore:
     def list_messages(self, conversation_id, limit=100):
         q = urllib.parse.urlencode({"select": "id,role,content,created_at",
                                     "conversation_id": "eq." + str(conversation_id),
-                                    "order": "created_at.asc", "limit": str(max(1, min(int(limit), 200)))})
+                                    "order": "created_at.asc,id.asc", "limit": str(max(1, min(int(limit), 200)))})
         return self._request("GET", "nesil_messages", q)
 
     def add_message(self, conversation_id, role, content):
@@ -130,6 +189,24 @@ class SupabaseDataStore:
         if not rows:
             raise SupabaseDataError("Mesaj kaydedilemedi.")
         return rows[0]
+
+    def add_messages(self, conversation_id, messages):
+        """Insert a message batch in one PostgREST/PostgreSQL statement."""
+        if not isinstance(conversation_id, str) or not conversation_id or len(conversation_id) > 64:
+            raise SupabaseDataError("Sohbet kimliği geçersiz.")
+        if not isinstance(messages, (list, tuple)) or not 1 <= len(messages) <= 100:
+            raise SupabaseDataError("Mesaj grubu boş veya çok büyük.")
+        payload = []
+        for message in messages:
+            if not isinstance(message, dict):
+                raise SupabaseDataError("Mesaj biçimi geçersiz.")
+            role, content = message.get("role"), message.get("content")
+            if role not in ("user", "assistant") or not isinstance(content, str) or len(content) > 50000:
+                raise SupabaseDataError("Mesaj biçimi veya uzunluğu geçersiz.")
+            payload.append({"conversation_id": conversation_id, "role": role, "content": content})
+        if len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 1_000_000:
+            raise SupabaseDataError("Mesaj grubu 1 MB sınırını aşıyor.")
+        self._request("POST", "nesil_messages", payload=payload, prefer="return=minimal")
 
     def delete_conversation(self, conversation_id):
         """Delete one owned conversation; RLS verifies ownership and cascades its messages."""
@@ -181,15 +258,22 @@ class SupabaseDataStore:
             raise SupabaseDataError("Dosya adı geçersiz.")
         if not isinstance(file_size, int) or file_size < 1 or file_size > 10 * 1024 * 1024:
             raise SupabaseDataError("Dosya boyutu geçersiz.")
-        q = urllib.parse.urlencode({"select": "id,object_path,file_name,folder_name,tags,file_size,content_type,created_at,updated_at"})
+        select = "id,object_path,file_name,folder_name,tags,file_size,content_type,created_at,updated_at"
+        q = urllib.parse.urlencode({"select": select, "on_conflict": "object_path"})
         rows = self._request("POST", "nesil_documents", q, {
             "user_id": self.user_id, "object_path": object_path, "file_name": file_name.strip(),
             "file_size": file_size, "content_type": (content_type or "application/octet-stream")[:120],
             "folder_name": "Genel", "tags": [],
-        }, "return=representation")
-        if not rows:
-            raise SupabaseDataError("Belge kaydı oluşturulamadı.")
-        return rows[0]
+        }, "resolution=ignore-duplicates,return=representation")
+        if rows:
+            return rows[0]
+        # The same idempotent upload may have completed its metadata write before
+        # the client timed out. Return the already-owned row without overwriting tags.
+        lookup = urllib.parse.urlencode({"select": select, "object_path": "eq." + object_path, "limit": "1"})
+        existing = self._request("GET", "nesil_documents", lookup)
+        if not existing:
+            raise SupabaseDataError("Belge kaydı oluşturulamadı veya bulunamadı.")
+        return existing[0]
 
     def update_document_organization(self, document_id, folder_name, tags):
         if not isinstance(document_id, str) or not document_id or len(document_id) > 64:
@@ -207,6 +291,24 @@ class SupabaseDataStore:
         self._request("PATCH", "nesil_documents", q, {
             "folder_name": folder_name.strip(),
             "tags": clean_tags,
+            "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        }, "return=minimal")
+
+    def rename_document(self, document_id, current_name, new_name):
+        if not isinstance(document_id, str) or not document_id or len(document_id) > 64:
+            raise SupabaseDataError("Belge kimliği geçersiz.")
+        if not isinstance(current_name, str) or not isinstance(new_name, str):
+            raise SupabaseDataError("Dosya adı geçersiz.")
+        new_name = new_name.strip()
+        if not new_name or len(new_name) > 180 or "/" in new_name or "\\" in new_name:
+            raise SupabaseDataError("Dosya adı 1-180 karakter olmalı ve yol içeremez.")
+        current_ext = current_name.rsplit(".", 1)[-1].casefold() if "." in current_name else ""
+        new_ext = new_name.rsplit(".", 1)[-1].casefold() if "." in new_name else ""
+        if current_ext != new_ext:
+            raise SupabaseDataError("Dosya uzantısı değiştirilemez.")
+        q = urllib.parse.urlencode({"id": "eq." + document_id})
+        self._request("PATCH", "nesil_documents", q, {
+            "file_name": new_name,
             "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
         }, "return=minimal")
 

@@ -1,6 +1,8 @@
 """Optional tools: no model calls and no account access."""
 from email_draft import MAX_BODY, build_draft
 from voice import render_speech
+from report_export import make_docx, make_pdf
+import hashlib
 
 
 def email_tools(st):
@@ -65,3 +67,32 @@ def voice_tools(st):
         st.caption("Ek model veya ücretli ses API'si kullanılmaz. Destek, ses kalitesi ve Türkçe ses bulunması tarayıcı/cihazına bağlıdır. Yalnızca tarayıcının yerel olarak bildirdiği sesler seçilir.")
         if enabled:
             render_speech(st, answer)
+
+
+def report_tools(st):
+    answer = next((m["content"] for m in reversed(st.session_state.messages) if m["role"] == "assistant"), "")
+    if not answer:
+        return
+    content_id = hashlib.sha256(answer.encode("utf-8")).hexdigest()
+    with st.expander("📑 Son yanıtı rapora dönüştür"):
+        st.caption("Rapor dosyaları yalnızca bu düğmelerle oluşturulur; sohbet üçüncü tarafa gönderilmez.")
+        first, second = st.columns(2)
+        if first.button("Word raporu oluştur", key="create_word_report"):
+            try:
+                st.session_state.report_export = {"content_id": content_id, "docx": make_docx(answer)}
+            except (ValueError, OSError) as exc:
+                st.error(str(exc))
+        if second.button("PDF raporu oluştur", key="create_pdf_report"):
+            try:
+                st.session_state.report_export = {"content_id": content_id, "pdf": make_pdf(answer)}
+            except (ValueError, OSError) as exc:
+                st.error(str(exc))
+        exported = st.session_state.get("report_export", {})
+        if exported.get("content_id") == content_id:
+            if exported.get("docx"):
+                st.download_button("Word raporunu indir (.docx)", exported["docx"],
+                                   file_name="nesil_ai_raporu.docx",
+                                   mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            if exported.get("pdf"):
+                st.download_button("PDF raporunu indir (.pdf)", exported["pdf"],
+                                   file_name="nesil_ai_raporu.pdf", mime="application/pdf")

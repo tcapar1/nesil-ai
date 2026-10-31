@@ -7,7 +7,7 @@ import zipfile
 from unittest.mock import patch
 
 from file_reader import extract_file, select_context, FileResult, MAX_FILE_BYTES, MAX_TEXT, find_document_matches
-from model_client import ask_model, read_api_key, build_messages, retry_seconds
+from model_client import ask_model, read_api_key, build_messages, retry_seconds, available_groq_models
 
 
 class Upload:
@@ -27,6 +27,16 @@ class CoreTests(unittest.TestCase):
         def fail(*a, **k):
             self.fail("Unexpected network call")
         self.assertFalse(ask_model("test", "test", [], opener=fail).ok)
+
+    def test_groq_model_allowlist_drives_payload_without_catalog_or_inference_probe(self):
+        with patch.dict(os.environ, {"NESIL_GROQ_MODELS": "openai/gpt-oss-120b, llama-3.3-70b-versatile,invalid model,openai/gpt-oss-120b"}):
+            self.assertEqual(available_groq_models(), ["openai/gpt-oss-120b", "llama-3.3-70b-versatile"])
+            def fake(request, **kwargs):
+                self.assertEqual(json.loads(request.data)["model"], "llama-3.3-70b-versatile")
+                return io.BytesIO(b'{"choices":[{"message":{"content":"ok"}}],"usage":{"total_tokens":2}}')
+            result = ask_model("test", "Genel", [], api_key="test-only", model="llama-3.3-70b-versatile", opener=fake)
+            self.assertTrue(result.ok)
+            self.assertFalse(ask_model("test", "Genel", [], api_key="test-only", model="not-allowed", opener=lambda *a, **k: self.fail("not allowlisted" )).ok)
 
     def test_secrets_failure_falls_back_to_environment(self):
         class BrokenSecrets:
@@ -129,6 +139,44 @@ class CoreTests(unittest.TestCase):
         self.assertIn("kalem", result.text)
         self.assertIn("İki", result.text)
         self.assertEqual(result.status, "kısmen okundu")
+        self.assertEqual(result.chart_data["label"], "Bir")
+        self.assertEqual(result.chart_data["rows"][0][:2], ["kalem", 42])
+
+    def test_csv_includes_bounded_plot_data(self):
+        result = extract_file(Upload("sales.csv", b"urun,tutar\nA,10\nB,20"))
+        self.assertEqual(result.chart_data["columns"], ["urun", "tutar"])
+        self.assertEqual(result.chart_data["rows"], [["A", "10"], ["B", "20"]])
+
+    def test_image_requires_opt_in_ocr_and_uses_local_reader(self):
+        from PIL import Image
+        raw = io.BytesIO()
+        Image.new("RGB", (20, 20), "white").save(raw, format="PNG")
+        upload = Upload("scan.png", raw.getvalue())
+        disabled = extract_file(upload, ocr=False)
+        self.assertIn("OCR", disabled.scope)
+        with patch("ocr_reader.ocr_image", return_value="Makbuz no 123") as reader:
+            result = extract_file(upload, ocr=True)
+        reader.assert_called_once()
+        self.assertIn("Makbuz no 123", result.text)
+
+    def test_pptx_extracts_slide_text_and_table_with_locations(self):
+        from pptx import Presentation
+        from pptx.util import Inches
+        presentation = Presentation()
+        slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+        box = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(5), Inches(1))
+        box.text = "Çeyrek sonuçları"
+        table = slide.shapes.add_table(2, 2, Inches(1), Inches(2), Inches(4), Inches(1)).table
+        table.cell(0, 0).text = "Ürün"
+        table.cell(0, 1).text = "Satış"
+        table.cell(1, 0).text = "Kalem"
+        table.cell(1, 1).text = "24"
+        raw = io.BytesIO()
+        presentation.save(raw)
+        result = extract_file(Upload("sonuc.pptx", raw.getvalue()))
+        self.assertIn("[Slayt 1]", result.text)
+        self.assertIn("Çeyrek sonuçları", result.text)
+        self.assertIn("Kalem | 24", result.text)
 
     def test_docx_text_and_table(self):
         from docx import Document

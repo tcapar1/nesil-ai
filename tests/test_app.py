@@ -15,7 +15,7 @@ class AppTests(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        env = patch.dict(os.environ, {"NESIL_USAGE_DB": str(Path(directory.name) / "usage.db"), "NESIL_USERS_JSON": "{}"})
+        env = patch.dict(os.environ, {"NESIL_USAGE_DB": str(Path(directory.name) / "usage.db"), "NESIL_USERS_JSON": "{}", "GROQ_API_KEY": ""})
         env.start()
         self.addCleanup(env.stop)
 
@@ -28,6 +28,57 @@ class AppTests(unittest.TestCase):
         app = self.start()
         self.assertEqual(len(app.chat_input), 1)
         self.assertEqual(len(app.selectbox[0].options), 5)
+        self.assertEqual(app.selectbox[1].label, "Model sağlayıcısı")
+        self.assertEqual(app.radio[0].label, "Tema")
+
+    def test_guest_header_reports_unconfigured_provider_and_session_scope(self):
+        app = self.start()
+        rendered = "\n".join(item.value for item in app.markdown)
+        self.assertIn("Groq ayarı eksik", rendered)
+        self.assertIn("Misafir oturumu", rendered)
+        self.assertIn("Bu oturumda", rendered)
+        self.assertNotIn("Güvenli Alan", rendered)
+
+    def test_dark_theme_preference_is_kept_in_session(self):
+        app = self.start()
+        app.radio[0].set_value("Koyu").run()
+        self.assertFalse(app.exception)
+        self.assertEqual(app.session_state["theme_choice"], "Koyu")
+
+    def test_continue_answer_queues_followup_with_existing_history(self):
+        with patch("app_service.call_with_limits", return_value=ModelResult("Devamı", ok=True)) as provider:
+            app = self.start()
+            app.session_state["messages"] = [
+                {"role": "user", "content": "Rapor özeti"},
+                {"role": "assistant", "content": "İlk bölüm"},
+            ]
+            app.session_state["last_request_at"] = 0
+            app.run()
+            next(button for button in app.button if button.label == "Yanıtı sürdür").click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(provider.call_count, 1)
+            self.assertEqual(app.session_state["messages"][-1]["content"], "Devamı")
+
+    def test_regenerate_answer_creates_new_session_turn_without_old_answer_context(self):
+        with patch("app_service.call_with_limits", return_value=ModelResult("Yeni yanıt", ok=True)) as provider:
+            app = self.start()
+            app.session_state["messages"] = [
+                {"role": "user", "content": "Önceki konu"},
+                {"role": "assistant", "content": "Önceki cevap"},
+                {"role": "user", "content": "Aynı soruyu tekrar yanıtla"},
+                {"role": "assistant", "content": "Eski cevap"},
+            ]
+            app.session_state["last_request_at"] = 0
+            app.run()
+            next(button for button in app.button if button.label == "Yanıtı yeniden üret").click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(provider.call_count, 1)
+            self.assertEqual(provider.call_args.args[3], "Aynı soruyu tekrar yanıtla")
+            self.assertEqual(provider.call_args.args[5], [
+                {"role": "user", "content": "Önceki konu"},
+                {"role": "assistant", "content": "Önceki cevap"},
+            ])
+            self.assertEqual(app.session_state["messages"][-1]["content"], "Yeni yanıt")
 
     def test_login_gate_and_logout(self):
         with patch("model_client.ask_model") as provider:

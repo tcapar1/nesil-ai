@@ -150,6 +150,56 @@ class SupabaseDataTests(unittest.TestCase):
         self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
         self.assertEqual(row["id"], "doc-1")
 
+    def test_begin_upload_and_finish_use_user_jwt_rpc(self):
+        response = FakeResponse(b'{"operation_id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","state":"pending"}')
+        with patch("urllib.request.urlopen", return_value=response) as opener:
+            result = self.store.begin_document_upload("a" * 32, "user-1/a_report.pdf", "report.pdf", 10,
+                                                     "application/pdf", "b" * 64)
+        request = opener.call_args.args[0]
+        self.assertTrue(request.full_url.endswith("/rest/v1/rpc/nesil_begin_document_upload"))
+        self.assertEqual(request.get_header("Authorization"), "Bearer user-jwt")
+        self.assertEqual(json.loads(request.data)["p_sha256"], "b" * 64)
+        self.assertEqual(result["state"], "pending")
+
+    def test_pending_document_operations_are_owner_scoped_and_bounded(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
+            self.store.list_pending_document_operations(limit=1000)
+        request = opener.call_args.args[0]
+        self.assertIn("nesil_document_operations", request.full_url)
+        self.assertIn("state=eq.pending", request.full_url)
+        self.assertIn("limit=100", request.full_url)
+        self.assertEqual(request.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_begin_upload_rejects_path_digest_and_operation_before_network(self):
+        with patch("urllib.request.urlopen") as opener:
+            for args in (("a" * 32, "other-user/x.pdf", "x.pdf", 10, "application/pdf", "b" * 64),
+                         ("bad", "user-1/x.pdf", "x.pdf", 10, "application/pdf", "b" * 64),
+                         ("a" * 32, "user-1/x.pdf", "x.pdf", 10, "application/pdf", "short")):
+                with self.assertRaises(SupabaseDataError):
+                    self.store.begin_document_upload(*args)
+        opener.assert_not_called()
+
+    def test_add_document_retry_returns_existing_row_without_overwriting_metadata(self):
+        existing = [{"id": "doc-1", "object_path": "user-1/op_report.pdf", "file_name": "renamed.pdf", "tags": ["important"]}]
+        with patch("urllib.request.urlopen", side_effect=[FakeResponse(b"[]"), FakeResponse(json.dumps(existing).encode())]) as opener:
+            row = self.store.add_document("user-1/op_report.pdf", "report.pdf", 1024, "application/pdf")
+        self.assertEqual(row["file_name"], "renamed.pdf")
+        self.assertEqual(row["tags"], ["important"])
+        self.assertEqual(opener.call_count, 2)
+        self.assertIn("on_conflict=object_path", opener.call_args_list[0].args[0].full_url)
+        self.assertEqual(opener.call_args_list[0].args[0].get_header("Prefer"), "resolution=ignore-duplicates,return=representation")
+
+    def test_rename_document_keeps_extension_and_rejects_path_or_extension_change(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.rename_document("doc-1", "report.pdf", "new report.pdf")
+        request = opener.call_args.args[0]
+        self.assertEqual(request.get_method(), "PATCH")
+        self.assertEqual(json.loads(request.data)["file_name"], "new report.pdf")
+        with self.assertRaises(SupabaseDataError):
+            self.store.rename_document("doc-1", "report.pdf", "report.docx")
+        with self.assertRaises(SupabaseDataError):
+            self.store.rename_document("doc-1", "report.pdf", "../report.pdf")
+
     def test_add_document_rejects_foreign_path_and_oversized_file(self):
         with self.assertRaises(SupabaseDataError):
             self.store.add_document("other-user/file.pdf", "file.pdf", 100, "application/pdf")
@@ -213,6 +263,44 @@ class SupabaseDataTests(unittest.TestCase):
         req = opener.call_args.args[0]
         body = json.loads(req.data)
         self.assertEqual(body, {"conversation_id":"conv-1","role":"user","content":"Merhaba"})
+
+    def test_add_messages_writes_both_turns_in_one_request(self):
+        messages = [
+            {"role": "user", "content": "Merhaba"},
+            {"role": "assistant", "content": "Merhaba!"},
+        ]
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.add_messages("conv-1", messages)
+        self.assertEqual(opener.call_count, 1)
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "POST")
+        self.assertEqual(json.loads(req.data), [
+            {"conversation_id": "conv-1", **message} for message in messages
+        ])
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+        self.assertEqual(req.get_header("Prefer"), "return=minimal")
+
+    def test_add_messages_rejects_invalid_batch_before_network(self):
+        with patch("urllib.request.urlopen") as opener:
+            with self.assertRaises(SupabaseDataError):
+                self.store.add_messages("conv-1", [
+                    {"role": "user", "content": "Soru"},
+                    {"role": "system", "content": "geçersiz"},
+                ])
+        opener.assert_not_called()
+
+    def test_add_messages_rejects_oversized_batch_before_network(self):
+        with patch("urllib.request.urlopen") as opener:
+            with self.assertRaises(SupabaseDataError):
+                self.store.add_messages("conv-1", [
+                    {"role": "user", "content": "x" * 50000} for _ in range(20)
+                ])
+        opener.assert_not_called()
+
+    def test_list_messages_uses_id_as_stable_tiebreaker(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
+            self.store.list_messages("conv-1")
+        self.assertIn("order=created_at.asc%2Cid.asc", opener.call_args.args[0].full_url)
 
     def test_add_memory_rejects_empty_and_oversized(self):
         with self.assertRaises(SupabaseDataError): self.store.add_memory("")
