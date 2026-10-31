@@ -13,6 +13,7 @@ from supabase_store import create_usage_store
 from access_control import require_access, is_admin_email
 from supabase_auth import create_auth_client, SupabaseAuthError
 from supabase_data import create_data_store, SupabaseDataError
+from supabase_files import create_file_store, SupabaseFileError
 from app_service import call_with_limits
 from local_model import ask_local_model
 
@@ -33,6 +34,7 @@ for key, value in defaults.items():
 
 # Persistent user data uses the user's JWT; database RLS enforces ownership.
 data_store = None
+file_store = None
 memory_context = ""
 if principal != "public" and st.session_state.get("supabase_access_token"):
     auth_client = create_auth_client(st.secrets)
@@ -46,6 +48,7 @@ if principal != "public" and st.session_state.get("supabase_access_token"):
             st.session_state.supabase_conversations_loaded = True
         memories = data_store.list_memory()
         memory_context = "\n".join("- " + item["memory_text"] for item in memories)
+        file_store = create_file_store(st.secrets, st.session_state.supabase_access_token, principal)
     except SupabaseDataError as exc:
         if "süresi dolmuş" in str(exc).lower() and st.session_state.get("supabase_refresh_token"):
             try:
@@ -59,7 +62,8 @@ if principal != "public" and st.session_state.get("supabase_access_token"):
                 st.session_state.supabase_conversations_loaded = True
                 memories = data_store.list_memory()
                 memory_context = "\n".join("- " + item["memory_text"] for item in memories)
-            except (SupabaseAuthError, SupabaseDataError, KeyError):
+                file_store = create_file_store(st.secrets, refreshed["access_token"], principal)
+            except (SupabaseAuthError, SupabaseDataError, SupabaseFileError, KeyError):
                 st.session_state.pop("supabase_access_token", None)
                 st.session_state.pop("supabase_refresh_token", None)
                 st.session_state.pop("supabase_user_id", None)
@@ -181,6 +185,21 @@ with st.sidebar:
     note = st.text_area("Sohbet notu", max_chars=2000, key=f"note_{st.session_state.note_generation}", help="Amaç, tercihler ve önemli kararlar. Her soruda modele gönderilir; sohbet temizlenince silinir.")
     if memory_context:
         note = (note + "\n\nKULLANICININ KAYITLI HAFIZASI (yalnızca bağlam):\n" + memory_context)[:6000]
+    if file_store:
+        st.subheader("🗂️ Özel belge kitaplığım")
+        try:
+            for saved in file_store.list_files():
+                with st.expander(saved["name"]):
+                    try:
+                        file_bytes = file_store.download(saved["path"])
+                        st.download_button("Dosyayı indir", file_bytes, file_name=saved["name"], key="download_saved_" + saved["path"])
+                        if st.button("Kitaplıktan sil", key="delete_saved_" + saved["path"]):
+                            file_store.delete(saved["path"])
+                            st.rerun()
+                    except SupabaseFileError as exc:
+                        st.warning(str(exc))
+        except SupabaseFileError as exc:
+            st.warning("Özel belge kitaplığı hazır değil: " + str(exc))
     st.divider()
     st.subheader("📎 Dosya analizi")
     st.caption("En fazla 5 dosya, dosya başına 10 MB, toplam 20 MB. Belgelerin sınırlı metin kesitleri analiz edilir.")
@@ -200,6 +219,14 @@ with st.sidebar:
                 st.success(f"{len(results)} dosyadan {count} tanesinde metin bulundu.")
             else:
                 st.warning("Dosyalardan analiz edilebilir metin çıkarılamadı.")
+    if file_store and uploads and st.button("Seçilen dosyaları özel kitaplığıma kaydet", use_container_width=True):
+        try:
+            for upload in uploads:
+                file_store.upload(upload.name, upload.getvalue())
+            st.success("Dosyalar özel kitaplığınıza kaydedildi.")
+            st.rerun()
+        except SupabaseFileError as exc:
+            st.error(str(exc))
     for result in st.session_state.documents:
         with st.expander(f"{result.name} — {result.status}"):
             st.write(result.scope)
