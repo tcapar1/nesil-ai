@@ -55,6 +55,14 @@ Kabul: İki test kullanıcısı birbirinin sohbetini, hafızasını, dosyasını
 
 ### Sohbet yönetimi teslimatı (2026-10-31)
 
+- [x] Sohbet başlığına göre arama/filtreleme ve yeniden adlandırma.
+- [x] Sohbetleri sabitleme ve arşivleme; arşivlenmiş sohbetleri ayrı görünümde listeleme.
+- [x] Pin/arşiv alanları için geriye uyumlu additive SQL migration ve taze kurulum şeması güncellemesi.
+- [x] Bayrak güncellemelerinde izin verilen alanlar ve kullanıcı JWT/RLS sınırları.
+- [x] Sohbet organizasyonu işlemleri için mock testler.
+- [ ] Migration'ı ayrı staging projesinde uygulayıp eski/yeni sohbetlerle doğrula.
+- [ ] Klasörler, etiketler ve toplu taşıma.
+
 - [x] Kalıcı sohbet başlıklarını arama/filtreleme.
 - [x] Sohbet başlığını kullanıcı tarafından yeniden adlandırma.
 - [x] Başlık güncelleme metodunda kimlik ve uzunluk doğrulaması; mock test.
