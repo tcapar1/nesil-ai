@@ -5,6 +5,44 @@ const $ = (id) => document.getElementById(id);
 const configured = SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("YOUR_PROJECT_REF") && SUPABASE_PUBLISHABLE_KEY.startsWith("sb_publishable_");
 const supabase = configured ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) : null;
 let session = null, activeConversation = null, authMode = "login", view = "chat", conversations = [];
+const selectedFiles = [];
+function closeToolMenu(){ $("tool-menu").classList.add("hidden"); $("tools-button").setAttribute("aria-expanded","false"); }
+function renderAttachments(){
+  const wrap=$("attachment-list"); wrap.innerHTML="";
+  wrap.classList.toggle("hidden",selectedFiles.length===0);
+  selectedFiles.forEach((file,index)=>{
+    const chip=document.createElement("div");chip.className="attachment-chip";
+    const name=document.createElement("span");name.textContent="📎 "+file.name;name.title=file.name;
+    const remove=document.createElement("button");remove.type="button";remove.textContent="×";remove.setAttribute("aria-label",file.name+" dosyasını kaldır");
+    remove.onclick=()=>{selectedFiles.splice(index,1);renderAttachments()};
+    chip.append(name,remove);wrap.append(chip);
+  });
+}
+$("tools-button").addEventListener("click",()=>{
+  const opening=$("tool-menu").classList.contains("hidden");
+  $("tool-menu").classList.toggle("hidden",!opening);
+  $("tools-button").setAttribute("aria-expanded",String(opening));
+});
+document.addEventListener("click",e=>{
+  if(!$("tool-menu").contains(e.target)&&!$("tools-button").contains(e.target))closeToolMenu();
+});
+$("tool-menu").addEventListener("click",e=>{
+  const button=e.target.closest("[data-tool]");if(!button)return;
+  const action=button.dataset.tool;closeToolMenu();
+  if(action==="upload"){$("file-input").click();return}
+  if(action==="documents"||action==="memory"){showView(action);return}
+  toast("Bu özellik sonraki geliştirme aşamasında etkinleştirilecek.");
+});
+$("file-input").addEventListener("change",e=>{
+  const incoming=Array.from(e.target.files||[]);
+  const allowed=/\.(pdf|doc|docx|xls|xlsx|csv|txt|png|jpe?g|webp)$/i;
+  incoming.forEach(file=>{
+    if(!allowed.test(file.name)){toast("Bu dosya türü henüz desteklenmiyor: "+file.name);return}
+    if(selectedFiles.length<5)selectedFiles.push(file);
+  });
+  renderAttachments();e.target.value="";
+});
+
 function toast(message){const el=$("toast");el.textContent=message;el.style.display="block";setTimeout(()=>el.style.display="none",3200)}
 function showView(name){view=name;for(const id of ["workspace","documents-view","memory-view"])$(id).classList.add("hidden");if(name==="chat")$("workspace").classList.remove("hidden");else $(name==="documents"?"documents-view":"memory-view").classList.remove("hidden");document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===name))}
 function authMessage(message,error=false){$("auth-message").textContent=message;$("auth-message").style.color=error?"#ff9b9b":"#a8c0ff"}
