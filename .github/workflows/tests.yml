@@ -34,6 +34,8 @@ jobs:
         with:
           version: latest
       - run: supabase init --force
+      - name: Avoid the hosted runner PostgreSQL port
+        run: python -c "from pathlib import Path; import re; p=Path('supabase/config.toml'); s=p.read_text(); s,n=re.subn(r'(?ms)(^\\[db\\]\\s*.*?^port\\s*=\\s*)54322\\b', r'\\g<1>55432', s, count=1); assert n == 1, 'expected local db port setting'; p.write_text(s)"
       - name: Disable local email confirmation for synthetic Auth users
         run: python -c "from pathlib import Path; p=Path('supabase/config.toml'); s=p.read_text(); p.write_text(s.replace('enable_confirmations = true','enable_confirmations = false'))"
       - run: supabase start -x studio,logflare,vector,edge-runtime,postgres-meta,supavisor,realtime,imgproxy
