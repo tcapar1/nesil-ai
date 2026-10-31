@@ -131,6 +131,55 @@ class SupabaseDataTests(unittest.TestCase):
         with self.assertRaises(SupabaseDataError):
             self.store.update_conversation_title("conversation-1", "x" * 121)
 
+    def test_list_documents_filters_by_name_and_folder_with_user_jwt(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
+            self.store.list_documents(search="budget", folder="Finance")
+        req = opener.call_args.args[0]
+        self.assertIn("file_name=ilike", req.full_url)
+        self.assertIn("folder_name=eq.Finance", req.full_url)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_add_document_uses_current_user_and_private_object_path(self):
+        body = json.dumps([{"id":"doc-1","file_name":"report.pdf"}]).encode()
+        with patch("urllib.request.urlopen", return_value=FakeResponse(body)) as opener:
+            row = self.store.add_document("user-1/abc_report.pdf", "report.pdf", 1024, "application/pdf")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "POST")
+        self.assertEqual(json.loads(req.data)["user_id"], "user-1")
+        self.assertEqual(json.loads(req.data)["object_path"], "user-1/abc_report.pdf")
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+        self.assertEqual(row["id"], "doc-1")
+
+    def test_add_document_rejects_foreign_path_and_oversized_file(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.add_document("other-user/file.pdf", "file.pdf", 100, "application/pdf")
+        with self.assertRaises(SupabaseDataError):
+            self.store.add_document("user-1/file.pdf", "file.pdf", 11 * 1024 * 1024, "application/pdf")
+
+    def test_update_document_organization_validates_and_updates_selected_record(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.update_document_organization("doc-1", "Projeler", ["2026", "Rapor"])
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "PATCH")
+        self.assertIn("id=eq.doc-1", req.full_url)
+        self.assertEqual(json.loads(req.data)["folder_name"], "Projeler")
+        self.assertEqual(json.loads(req.data)["tags"], ["2026", "Rapor"])
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_update_document_organization_rejects_bad_tags(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_document_organization("doc-1", "Projeler", ["x" * 31])
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_document_organization("doc-1", " ", [])
+
+    def test_delete_document_uses_id_filter_and_user_jwt(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.delete_document("doc-1")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "DELETE")
+        self.assertIn("id=eq.doc-1", req.full_url)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
     def test_update_memory_patches_only_selected_memory(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
             self.store.update_memory("memory-1", "Yeni bilgi")
