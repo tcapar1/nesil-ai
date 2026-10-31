@@ -167,11 +167,22 @@ with st.sidebar:
                 st.error(str(exc))
         try:
             for item in data_store.list_memory():
-                col1, col2 = st.columns([5, 1])
-                col1.caption(item["memory_text"])
-                if col2.button("Sil", key="delete_memory_" + item["id"]):
-                    data_store.delete_memory(item["id"])
-                    st.rerun()
+                with st.expander(item["memory_text"][:70] or "Hafıza kaydı"):
+                    edited_memory = st.text_area(
+                        "Hafıza metni", value=item["memory_text"], max_chars=4000,
+                        key="edit_memory_text_" + item["id"],
+                    )
+                    col1, col2 = st.columns(2)
+                    if col1.button("Değişiklikleri kaydet", key="save_memory_" + item["id"], use_container_width=True):
+                        try:
+                            data_store.update_memory(item["id"], edited_memory)
+                            st.success("Hafıza kaydı güncellendi.")
+                            st.rerun()
+                        except SupabaseDataError as exc:
+                            st.error(str(exc))
+                    if col2.button("Hafızayı sil", key="delete_memory_" + item["id"], use_container_width=True):
+                        data_store.delete_memory(item["id"])
+                        st.rerun()
         except SupabaseDataError as exc:
             st.warning(str(exc))
     mode = st.selectbox("Çalışma biçimi", ["Genel yardımcı", "Görev planlama", "Kodlama yardımcısı", "Matematik öğretmeni", "Belge ve rapor yardımcısı"])
