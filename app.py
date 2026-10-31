@@ -10,7 +10,7 @@ from research_ui import show_research
 from tools_ui import email_tools, voice_tools
 from python_runner import runner_tools
 from supabase_store import create_usage_store
-from access_control import require_access
+from access_control import require_access, is_admin_email
 from supabase_auth import create_auth_client, SupabaseAuthError
 from supabase_data import create_data_store, SupabaseDataError
 from app_service import call_with_limits
@@ -21,6 +21,9 @@ st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
 try:
     usage_store = create_usage_store()
     principal = require_access(st, usage_store)
+    is_admin = bool(st.session_state.get('supabase_user_email') and is_admin_email(
+        st.secrets, st.session_state.get('supabase_user_email')
+    ))
 except (ValueError, OSError, sqlite3.Error):
     st.error("Giriş veya kullanım kaydı ayarları geçersiz. Yönetici yapılandırmayı kontrol etmeli.")
     st.stop()
@@ -66,6 +69,14 @@ with st.sidebar:
     st.title("🤖 Nesil AI")
     st.caption("Türkçe yapay zekâ yardımcısı")
     st.caption("Genel sohbet ve diğer bulut modları Groq kullanır. Kodlama ve matematik modları yerel Ollama kullanır; otomatik bulut yedeği yoktur.")
+    if is_admin:
+        st.success("Yönetici hesabı")
+        with st.expander("Yönetici hesabı bilgileri"):
+            st.caption("Bu hesap Nesil AI yönetici listesinde tanımlı.")
+            st.write("E-posta:", st.session_state.get("supabase_user_email", ""))
+            st.caption("Yönetici yetkisi sunucu tarafındaki NESIL_ADMIN_EMAILS ayarıyla verilir.")
+    elif principal != "public":
+        st.caption("Standart kullanıcı hesabı")
     if principal != "public" and st.button("Çıkış yap", use_container_width=True):
         if st.session_state.get("supabase_access_token"):
             try:
