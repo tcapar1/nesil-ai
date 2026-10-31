@@ -55,7 +55,7 @@ class SupabaseFileTests(unittest.TestCase):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
             self.store.delete("user-123/abc_rapor.pdf")
         request = opener.call_args.args[0]
-        self.assertEqual(request.get_method(), "POST")
+        self.assertEqual(request.get_method(), "DELETE")
         self.assertTrue(request.full_url.endswith("/storage/v1/object/nesil-user-files"))
         self.assertEqual(json.loads(request.data), {"prefixes": ["user-123/abc_rapor.pdf"]})
         self.assertEqual(request.get_header("Authorization"), "Bearer user-jwt")
