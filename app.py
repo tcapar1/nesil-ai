@@ -3,7 +3,7 @@ import time
 import json
 import sqlite3
 import streamlit as st
-from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, select_context
+from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, select_context, find_document_matches
 from document_worker import extract_bounded, UploadData
 from model_client import ask_model, read_api_key
 from research_ui import show_research
@@ -301,6 +301,22 @@ with st.sidebar:
         except SupabaseFileError as exc:
             st.warning("Özel belge kitaplığı hazır değil: " + str(exc))
     st.divider()
+    if st.session_state.documents:
+        st.subheader("🔎 Açık belgelerde içerik ara")
+        document_query = st.text_input("Belge içeriğinde ara", max_chars=200, placeholder="Örn. toplam tutar, sözleşme tarihi…", key="document_content_search")
+        if document_query.strip():
+            matches = []
+            for document in st.session_state.documents:
+                for match in find_document_matches(document.text, document_query, max_results=8):
+                    matches.append((document.name, match))
+            matches.sort(key=lambda item: (-item[1]["score"], item[0], item[1]["line"]))
+            if matches:
+                st.caption(f"{len(matches)} eşleşme bulundu. Sonuçlar mevcut oturumdaki çıkarılmış metin içinde aranır.")
+                for file_name, match in matches[:30]:
+                    st.markdown(f"**{file_name} · {match['location']} · metin satırı {match['line']}**")
+                    st.write(match["excerpt"])
+            else:
+                st.info("Açık belgelerde bu ifadeyle eşleşme bulunamadı.")
     st.subheader("📎 Dosya analizi")
     st.caption("En fazla 5 dosya, dosya başına 10 MB, toplam 20 MB. Belgelerin sınırlı metin kesitleri analiz edilir.")
     uploads = st.file_uploader("Dosya seçin", type=list(ALLOWED), accept_multiple_files=True, key=f"uploads_{st.session_state.upload_generation}")
