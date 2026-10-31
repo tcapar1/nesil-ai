@@ -77,10 +77,16 @@ class SupabaseDataStore:
             raise SupabaseDataError("Profil kaydı oluşturulamadı veya güncellenemedi.")
         return rows[0]
 
-    def list_conversations(self, limit=50):
+    def list_conversations(self, limit=50, include_archived=False):
         limit = max(1, min(int(limit), 100))
-        q = urllib.parse.urlencode({"select": "id,title,created_at,updated_at",
-                                    "order": "updated_at.desc", "limit": str(limit)})
+        filters = {
+            "select": "id,title,is_pinned,is_archived,created_at,updated_at",
+            "order": "is_pinned.desc,updated_at.desc",
+            "limit": str(limit),
+        }
+        if not include_archived:
+            filters["is_archived"] = "eq.false"
+        q = urllib.parse.urlencode(filters)
         return self._request("GET", "nesil_conversations", q)
 
     def create_conversation(self, title="Yeni sohbet"):
@@ -90,6 +96,23 @@ class SupabaseDataStore:
         if not rows or not rows[0].get("id"):
             raise SupabaseDataError("Yeni sohbet kaydı oluşturulamadı.")
         return rows[0]
+
+    def set_conversation_flag(self, conversation_id, flag, value):
+        if not isinstance(conversation_id, str) or not conversation_id or len(conversation_id) > 64:
+            raise SupabaseDataError("Sohbet kimliği geçersiz.")
+        if flag not in ("is_pinned", "is_archived") or not isinstance(value, bool):
+            raise SupabaseDataError("Sohbet ayarı geçersiz.")
+        q = urllib.parse.urlencode({"id": "eq." + conversation_id})
+        self._request("PATCH", "nesil_conversations", q,
+                      {flag: value,
+                       "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()},
+                      "return=minimal")
+
+    def pin_conversation(self, conversation_id, pinned=True):
+        self.set_conversation_flag(conversation_id, "is_pinned", pinned)
+
+    def archive_conversation(self, conversation_id, archived=True):
+        self.set_conversation_flag(conversation_id, "is_archived", archived)
 
     def list_messages(self, conversation_id, limit=100):
         q = urllib.parse.urlencode({"select": "id,role,content,created_at",
