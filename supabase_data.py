@@ -127,5 +127,5 @@ def create_data_store(secrets, access_token, user_id):
                 return value
         return ""
     return SupabaseDataStore(setting("SUPABASE_URL"),
-                              setting("SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY"),
+                              setting("SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"),
                               access_token, user_id)
