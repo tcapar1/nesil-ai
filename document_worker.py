@@ -100,7 +100,7 @@ def load_saved_documents(file_store, saved_rows, max_files=MAX_FILES, max_total_
                 skipped.append((name, "Dosya 10 MB sınırını aşıyor."))
                 continue
             if total_bytes + len(raw) > byte_limit:
-                skipped.append((name, "Toplam 20 MB yükleme sınırı aşılacağı için atlandı."))
+                skipped.append((name, f"Belirlenen toplam yükleme sınırı ({byte_limit} bayt) aşılacağı için atlandı."))
                 continue
             result = extract_bounded(UploadData(name, raw))
             if result.text:
