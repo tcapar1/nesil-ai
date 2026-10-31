@@ -1,0 +1,30 @@
+name: Pages web checks
+
+on:
+  push:
+    branches:
+      - feature/pages-web-20261101
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check browser JavaScript syntax
+        run: |
+          node --input-type=module --check < web/app.js
+          node --input-type=module --check < web/config.js
+      - name: Check required web assets
+        run: |
+          test -s web/index.html
+          test -s web/styles.css
+          test -s web/app.js
+          test -s web/config.js
+          test -s web/_headers
+      - name: Reject server secrets in browser configuration
+        run: |
+          ! grep -Eiq 'service_role|sb_secret_|gsk_' web/config.js
