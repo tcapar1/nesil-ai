@@ -122,6 +122,11 @@ async function uploadDocuments(files){
  }
  await loadDocuments();
 }
+async function runOcrOnCanvas(canvas){
+ const mod=await import("https://esm.sh/tesseract.js@6.0.1?bundle");
+ const worker=await mod.createWorker("tur+eng");
+ try{const result=await worker.recognize(canvas);return result.data.text||""}finally{await worker.terminate()}
+}
 async function extractDocumentText(blob,fileName){
  const ext=fileName.split(".").pop().toLowerCase();
  if(["txt","csv","md"].includes(ext))return await blob.text();
@@ -135,19 +140,37 @@ async function extractDocumentText(blob,fileName){
    pages.push(content.items.map(item=>item.str||"").join(" "));
    if(pages.join("\n").length>=16000)break;
   }
-  return pages.join("\n");
+  let extracted=pages.join("\n");
+  if(extracted.replace(/\\s/g,"").length<80){
+   const ocrPages=[];
+   for(let pageNo=1;pageNo<=Math.min(pdf.numPages,3);pageNo++){
+    const page=await pdf.getPage(pageNo);const viewport=page.getViewport({scale:1.5});
+    const canvas=document.createElement("canvas");canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+    await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
+    ocrPages.push(await runOcrOnCanvas(canvas));
+    if(ocrPages.join("\n").length>=16000)break;
+   }
+   extracted=ocrPages.join("\n");
+  }
+  return extracted;
  }
  if(ext==="docx"){
   const mammoth=await import("https://esm.sh/mammoth@1.9.0?bundle");
   const result=await mammoth.extractRawText({arrayBuffer:buffer});
   return result.value||"";
  }
+ if(["png","jpg","jpeg","webp"].includes(ext)){
+  const bitmap=await createImageBitmap(blob);const canvas=document.createElement("canvas");
+  const scale=Math.min(1,2200/Math.max(bitmap.width,bitmap.height));canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);
+  canvas.getContext("2d").drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
+  return await runOcrOnCanvas(canvas);
+ }
  if(ext==="xlsx"||ext==="xls"){
   const XLSX=await import("https://esm.sh/xlsx@0.18.5?bundle");
   const workbook=XLSX.read(buffer,{type:"array",cellDates:true});
   return workbook.SheetNames.slice(0,10).map(name=>"SAYFA: "+name+"\n"+XLSX.utils.sheet_to_csv(workbook.Sheets[name],{blankrows:false})).join("\n\n");
  }
- throw new Error("Bu dosya türü henüz çözümlenemiyor. TXT, CSV, PDF, DOCX, XLS veya XLSX deneyin.");
+ throw new Error("Bu dosya türü henüz çözümlenemiyor. TXT, CSV, PDF, DOCX, XLS/XLSX, PNG, JPG veya WEBP deneyin.");
 }
 async function analyzeDocument(d){
  const question=prompt("Belgeyle ilgili ne yapmamı istersiniz?","Belgeyi özetle ve önemli noktaları çıkar.");
