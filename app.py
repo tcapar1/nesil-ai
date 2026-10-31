@@ -190,11 +190,22 @@ with st.sidebar:
         try:
             for saved in file_store.list_files():
                 with st.expander(saved["name"]):
-                    try:
-                        file_bytes = file_store.download(saved["path"])
-                        st.download_button("Dosyayı indir", file_bytes, file_name=saved["name"], key="download_saved_" + saved["path"])
-                        if st.button("Belge analiz alanına al", key="analyze_saved_" + saved["path"]):
+                    cached_download = st.session_state.get("saved_file_download")
+                    if cached_download and cached_download.get("path") == saved["path"]:
+                        st.download_button("Dosyayı indir", cached_download["data"], file_name=saved["name"],
+                                           key="download_saved_" + saved["path"])
+                    if st.button("İndirmeyi hazırla", key="prepare_download_" + saved["path"]):
+                        try:
+                            with st.spinner("Dosya hazırlanıyor…"):
+                                data = file_store.download(saved["path"])
+                            st.session_state.saved_file_download = {"path": saved["path"], "data": data}
+                            st.rerun()
+                        except SupabaseFileError as exc:
+                            st.warning(str(exc))
+                    if st.button("Belge analiz alanına al", key="analyze_saved_" + saved["path"]):
+                        try:
                             with st.spinner("Kayıtlı belge okunuyor…"):
+                                file_bytes = file_store.download(saved["path"])
                                 extracted = extract_bounded(UploadData(saved["name"], file_bytes))
                             st.session_state.documents = [item for item in st.session_state.documents if item.name != saved["name"]]
                             st.session_state.documents.append(extracted)
@@ -204,11 +215,16 @@ with st.sidebar:
                             else:
                                 st.warning(extracted.scope)
                             st.rerun()
-                        if st.button("Kitaplıktan sil", key="delete_saved_" + saved["path"]):
+                        except SupabaseFileError as exc:
+                            st.warning(str(exc))
+                    if st.button("Kitaplıktan sil", key="delete_saved_" + saved["path"]):
+                        try:
                             file_store.delete(saved["path"])
+                            if st.session_state.get("saved_file_download", {}).get("path") == saved["path"]:
+                                st.session_state.pop("saved_file_download", None)
                             st.rerun()
-                    except SupabaseFileError as exc:
-                        st.warning(str(exc))
+                        except SupabaseFileError as exc:
+                            st.warning(str(exc))
         except SupabaseFileError as exc:
             st.warning("Özel belge kitaplığı hazır değil: " + str(exc))
     st.divider()
