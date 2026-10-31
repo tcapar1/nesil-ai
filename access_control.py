@@ -17,6 +17,27 @@ def configured_users(secrets):
         raise ValueError("Access codes must contain at least 16 characters")
     return result
 
+def configured_admin_emails(secrets):
+    try:
+        configured = secrets.get("NESIL_ADMIN_EMAILS")
+    except Exception:
+        configured = None
+    if configured is None:
+        configured = os.environ.get("NESIL_ADMIN_EMAILS", "")
+    if isinstance(configured, str):
+        values = configured.replace(";", ",").split(",")
+    elif isinstance(configured, (list, tuple, set)):
+        values = configured
+    else:
+        raise ValueError("NESIL_ADMIN_EMAILS must be a list of email addresses")
+    return {str(value).strip().lower() for value in values if str(value).strip()}
+
+
+def is_admin_email(secrets, email):
+    normalized = str(email or "").strip().lower()
+    return bool(normalized and normalized in configured_admin_emails(secrets))
+
+
 def authenticate(users, name, code):
     expected = users.get(name)
     if not expected or not hmac.compare_digest(expected.encode(), code.encode()): return ""
@@ -42,6 +63,7 @@ def _require_supabase_access(st):
                         st.session_state.supabase_access_token = result["access_token"]
                         st.session_state.supabase_refresh_token = result["refresh_token"]
                         st.session_state.supabase_user_id = result["user"]["id"]
+                        st.session_state.supabase_user_email = result["user"].get("email", email).strip().lower()
                         st.rerun()
                     st.success("Hesap oluşturma isteği alındı. E-posta doğrulamasını tamamlayın, ardından giriş yapın.")
                 else:
@@ -49,6 +71,7 @@ def _require_supabase_access(st):
                     st.session_state.supabase_access_token = result["access_token"]
                     st.session_state.supabase_refresh_token = result["refresh_token"]
                     st.session_state.supabase_user_id = result["user"]["id"]
+                    st.session_state.supabase_user_email = result["user"].get("email", email).strip().lower()
                     st.rerun()
             except SupabaseAuthError as exc: st.error(str(exc))
     st.stop()
