@@ -116,6 +116,13 @@ with st.sidebar:
                 st.rerun()
             except SupabaseDataError as exc:
                 st.error(str(exc))
+        show_archived = st.checkbox("Arşivlenen sohbetleri göster", key="show_archived_conversations")
+        if st.session_state.get("supabase_archived_view") != show_archived:
+            try:
+                st.session_state.supabase_conversations = data_store.list_conversations(include_archived=show_archived)
+                st.session_state.supabase_archived_view = show_archived
+            except SupabaseDataError as exc:
+                st.warning(str(exc))
         conversations = st.session_state.get("supabase_conversations", [])
         if conversations:
             conversation_search = st.text_input("Sohbetlerde ara", placeholder="Başlığa göre filtrele…", key="conversation_search")
@@ -137,6 +144,25 @@ with st.sidebar:
                     rows = data_store.list_messages(selected_id)
                     st.session_state.messages = [{"role": row["role"], "content": row["content"]} for row in rows]
                     st.session_state.supabase_active_conversation = selected_id
+                    st.rerun()
+                except SupabaseDataError as exc:
+                    st.error(str(exc))
+            selected_row = next((row for row in conversations if row["id"] == selected_id), {})
+            flag_col1, flag_col2 = st.columns(2)
+            is_pinned = bool(selected_row.get("is_pinned", False))
+            is_archived = bool(selected_row.get("is_archived", False))
+            if flag_col1.button("📌 Sabitle" if not is_pinned else "Sabitlemeyi kaldır", use_container_width=True):
+                try:
+                    data_store.pin_conversation(selected_id, not is_pinned)
+                    st.session_state.supabase_conversations_loaded = False
+                    st.rerun()
+                except SupabaseDataError as exc:
+                    st.error(str(exc))
+            if flag_col2.button("Arşivden çıkar" if is_archived else "Arşivle", use_container_width=True):
+                try:
+                    data_store.archive_conversation(selected_id, not is_archived)
+                    st.session_state.supabase_conversations_loaded = False
+                    st.session_state.supabase_archived_view = None
                     st.rerun()
                 except SupabaseDataError as exc:
                     st.error(str(exc))
