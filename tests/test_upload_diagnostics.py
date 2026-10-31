@@ -33,7 +33,7 @@ class UploadDiagnosticsTests(unittest.TestCase):
         result = extract_file(Upload("cevap.xlsx", buffer.getvalue()))
 
         self.assertIn("Cevap Anahtarı", result.text)
-        self.assertIn("A2=A", result.text)
+        self.assertIn("A2=1", result.text)
         self.assertIn("B2=A", result.text)
         self.assertNotEqual(result.status, "okunamadı")
 
