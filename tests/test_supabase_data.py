@@ -86,6 +86,21 @@ class SupabaseDataTests(unittest.TestCase):
         with self.assertRaises(SupabaseDataError):
             self.store.touch_conversation("")
 
+    def test_update_conversation_title_is_validated_and_user_scoped(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.update_conversation_title("conversation-1", "Yeni başlık")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "PATCH")
+        self.assertIn("id=eq.conversation-1", req.full_url)
+        self.assertEqual(json.loads(req.data)["title"], "Yeni başlık")
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_update_conversation_title_rejects_invalid_values(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_conversation_title("", "Başlık")
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_conversation_title("conversation-1", "x" * 121)
+
     def test_update_memory_patches_only_selected_memory(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
             self.store.update_memory("memory-1", "Yeni bilgi")
