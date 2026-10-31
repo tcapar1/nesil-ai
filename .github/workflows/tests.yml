@@ -32,7 +32,7 @@ jobs:
           python-version: '3.12'
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 3.0.0-beta.17
       - run: supabase init --force
       - name: Avoid the hosted runner PostgreSQL port
         run: python -c "from pathlib import Path; import re; p=Path('supabase/config.toml'); s=p.read_text(); s,n=re.subn(r'(?ms)(^\\[db\\]\\s*.*?^port\\s*=\\s*)54322\\b', r'\\g<1>55432', s, count=1); assert n == 1, 'expected local db port setting'; p.write_text(s)"
