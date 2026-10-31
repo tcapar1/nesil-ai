@@ -220,13 +220,18 @@ with st.sidebar:
             else:
                 st.warning("Dosyalardan analiz edilebilir metin çıkarılamadı.")
     if file_store and uploads and st.button("Seçilen dosyaları özel kitaplığıma kaydet", use_container_width=True):
-        try:
-            for upload in uploads:
-                file_store.upload(upload.name, upload.getvalue())
-            st.success("Dosyalar özel kitaplığınıza kaydedildi.")
-            st.rerun()
-        except SupabaseFileError as exc:
-            st.error(str(exc))
+        if len(uploads) > MAX_FILES or sum(upload.size for upload in uploads) > MAX_TOTAL_BYTES:
+            st.error("Özel kitaplık için de en fazla 5 dosya ve toplam 20 MB sınırı geçerlidir.")
+        else:
+            try:
+                saved_count = 0
+                for upload in uploads:
+                    file_store.upload(upload.name, upload.getvalue())
+                    saved_count += 1
+                st.success(f"{saved_count} dosya özel kitaplığınıza kaydedildi.")
+                st.rerun()
+            except SupabaseFileError as exc:
+                st.error(f"{saved_count} dosya kaydedildi; kalan dosyalar kaydedilemedi: {exc}")
     for result in st.session_state.documents:
         with st.expander(f"{result.name} — {result.status}"):
             st.write(result.scope)
