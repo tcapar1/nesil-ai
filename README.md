@@ -360,7 +360,11 @@ Dosyalar herkese açık olmayan `nesil-user-files` bucket'ında, kullanıcı UUI
 ile başlayan nesne yollarında tutulur. Storage RLS politikaları yalnızca
 kullanıcının kendi klasörüne erişmesine izin verir. Dosya başına 10 MB, tek
 yüklemede en fazla 5 dosya ve toplam 20 MB sınırı uygulanır. Service-role
-anahtarı kullanılmaz.
+anahtarı kullanılmaz. Kitaplık listesindeki belgeler de tek işlemle analiz
+alanına alınabilir; bu işlem aynı 5 dosya/20 MB sınırını gerçek indirilen
+boyutlar üzerinden uygular, yinelenen dosya adlarını atlar ve okunamayan
+dosyaları ayrı raporlar. Toplu yükleme mevcut açık belge listesinin yerine
+geçer; yanlışlıkla önceki analiz dosyalarıyla birleştirme yapmaz.
 
 Yeni `202610310003_private_document_storage.sql` migration dosyası bucket ve
 Storage sahiplik politikalarını oluşturur. **Bu migration canlı Supabase
