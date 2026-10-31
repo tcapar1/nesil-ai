@@ -149,6 +149,41 @@ def extract_file(upload, ocr=False):
         return FileResult(name, scope="Dosya okunamadı. Biçim, bozulma veya parola korumasını kontrol edin.")
 
 
+def find_document_matches(text, query, max_results=12, snippet_chars=420):
+    """Find bounded, local-only excerpts while retaining page/row/paragraph markers."""
+    if not isinstance(text, str) or not isinstance(query, str):
+        return []
+    terms = search_terms(query)
+    if not terms:
+        return []
+    results, location = [], "Konum belirtilmemiş"
+    for line_number, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        marker = re.match(r"^\[(Sayfa[^\]]*|Paragraf[^\]]*|Tablo[^\]]*)\]", stripped)
+        row_marker = re.match(r"^(Satır \d+:)", stripped)
+        if marker:
+            location = marker.group(1)
+            continue
+        if row_marker:
+            location = row_marker.group(1)
+        normalized = normalize(stripped)
+        score = sum(1 for term in terms if term in normalized)
+        if score:
+            excerpt = stripped
+            if len(excerpt) > snippet_chars:
+                excerpt = excerpt[:snippet_chars].rstrip() + "…"
+            results.append({
+                "location": location,
+                "line": line_number,
+                "excerpt": excerpt,
+                "score": score,
+            })
+    results.sort(key=lambda item: (-item["score"], item["line"]))
+    return results[:max(1, min(int(max_results), 30))]
+
+
 def select_context(results, prompt, limit=5000):
     """Deterministic excerpts, shared fairly; no paid embedding or API calls."""
     valid = [r for r in results if r.text]
