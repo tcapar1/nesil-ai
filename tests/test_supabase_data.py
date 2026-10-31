@@ -37,6 +37,18 @@ class SupabaseDataTests(unittest.TestCase):
         self.assertEqual(req.get_header("Apikey"), "public-key")
         self.assertIn("nesil_conversations", req.full_url)
 
+    def test_delete_conversation_uses_id_filter_and_delete_method(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.delete_conversation("conversation-1")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "DELETE")
+        self.assertIn("id=eq.conversation-1", req.full_url)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_delete_conversation_rejects_empty_id(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.delete_conversation("")
+
     def test_add_message_payload(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b'[{"id":1}]')) as opener:
             self.store.add_message("conv-1", "user", "Merhaba")
