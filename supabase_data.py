@@ -54,6 +54,22 @@ class SupabaseDataStore:
         except (UnicodeDecodeError, json.JSONDecodeError):
             raise SupabaseDataError("Veritabanından geçersiz yanıt alındı.") from None
 
+    def get_profile(self):
+        q = urllib.parse.urlencode({"select": "user_id,display_name,created_at,updated_at",
+                                    "user_id": "eq." + self.user_id, "limit": "1"})
+        rows = self._request("GET", "nesil_profiles", q)
+        return rows[0] if rows else {"user_id": self.user_id, "display_name": ""}
+
+    def update_profile(self, display_name):
+        if not isinstance(display_name, str) or len(display_name.strip()) > 80:
+            raise SupabaseDataError("Görünen ad en fazla 80 karakter olabilir.")
+        q = urllib.parse.urlencode({"user_id": "eq." + self.user_id, "select": "user_id,display_name,updated_at"})
+        rows = self._request("PATCH", "nesil_profiles", q,
+                             {"display_name": display_name.strip()}, "return=representation")
+        if not rows:
+            raise SupabaseDataError("Profil güncellenemedi. Profil kaydı bulunamadı.")
+        return rows[0]
+
     def list_conversations(self, limit=50):
         limit = max(1, min(int(limit), 100))
         q = urllib.parse.urlencode({"select": "id,title,created_at,updated_at",
