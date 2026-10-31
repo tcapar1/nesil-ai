@@ -7,8 +7,17 @@ const ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:8788",
 ]);
 
+function isAllowedOrigin(origin: string) {
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  try {
+    const url = new URL(origin);
+    return url.protocol === "https:" && url.port === "" &&
+      /^[a-z0-9-]+\\.nesilai\\.pages\\.dev$/.test(url.hostname);
+  } catch { return false; }
+}
+
 function response(body: unknown, status = 200, origin = "") {
-  const allowOrigin = ALLOWED_ORIGINS.has(origin) ? origin : "https://nesilai.pages.dev";
+  const allowOrigin = isAllowedOrigin(origin) ? origin : "https://nesilai.pages.dev";
   return new Response(JSON.stringify(body), {
     status,
     headers: {
@@ -26,7 +35,7 @@ Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin") ?? "";
   if (req.method === "OPTIONS") return response({ ok: true }, 204, origin);
   if (req.method !== "POST") return response({ error: "Yalnızca POST desteklenir." }, 405, origin);
-  if (origin && !ALLOWED_ORIGINS.has(origin)) return response({ error: "Bu kaynaktan erişime izin verilmiyor." }, 403, origin);
+  if (origin && !isAllowedOrigin(origin)) return response({ error: "Bu kaynaktan erişime izin verilmiyor." }, 403, origin);
 
   const authorization = req.headers.get("authorization") ?? "";
   const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
