@@ -33,15 +33,25 @@ class SavedDocumentBatchTests(unittest.TestCase):
         self.assertEqual(store.calls, ["u/a.pdf", "u/b.txt"])
 
     @patch("document_worker.extract_bounded")
-    def test_batch_is_limited_by_file_count_and_total_downloaded_bytes(self, extract):
+    def test_batch_is_limited_by_file_count(self, extract):
         extract.side_effect = lambda upload: FileResult(upload.name, "metin", "okundu")
         store = FakeStore({"u/a.txt": b"123", "u/b.txt": b"456", "u/c.txt": b"789"})
         rows = [{"file_name": f"{name}.txt", "object_path": f"u/{name}.txt"} for name in "abc"]
-        loaded, skipped = load_saved_documents(store, rows, max_files=2, max_total_bytes=5)
+        loaded, skipped = load_saved_documents(store, rows, max_files=2, max_total_bytes=20)
+        self.assertEqual([item.name for item in loaded], ["a.txt", "b.txt"])
+        self.assertEqual(len(skipped), 1)
+        self.assertIn("2 belge", skipped[0][1])
+
+    @patch("document_worker.extract_bounded")
+    def test_batch_is_limited_by_total_downloaded_bytes(self, extract):
+        extract.side_effect = lambda upload: FileResult(upload.name, "metin", "okundu")
+        store = FakeStore({"u/a.txt": b"123", "u/b.txt": b"456", "u/c.txt": b"789"})
+        rows = [{"file_name": f"{name}.txt", "object_path": f"u/{name}.txt"} for name in "abc"]
+        loaded, skipped = load_saved_documents(store, rows, max_files=3, max_total_bytes=5)
         self.assertEqual([item.name for item in loaded], ["a.txt"])
         self.assertEqual(len(skipped), 2)
         self.assertIn("Toplam", skipped[0][1])
-        self.assertIn("2 belge", skipped[1][1])
+        self.assertIn("Toplam", skipped[1][1])
 
     @patch("document_worker.extract_bounded")
     def test_duplicate_names_are_not_loaded_twice(self, extract):
