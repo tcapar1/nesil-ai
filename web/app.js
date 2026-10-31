@@ -141,7 +141,7 @@ async function extractDocumentText(blob,fileName){
    if(pages.join("\n").length>=16000)break;
   }
   let extracted=pages.join("\n");
-  if(extracted.replace(/\\s/g,"").length<80){
+  if(extracted.replace(/\s/g,"").length<80){
    const ocrPages=[];
    for(let pageNo=1;pageNo<=Math.min(pdf.numPages,3);pageNo++){
     const page=await pdf.getPage(pageNo);const viewport=page.getViewport({scale:1.5});
