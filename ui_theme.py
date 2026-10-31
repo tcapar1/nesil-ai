@@ -63,7 +63,14 @@ def apply_theme():
         .nd-file-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:11px;background:#f2f6ff;font-size:1.3rem}
         .nd-rail-item strong,.nd-chat-item strong{display:block;font-size:.76rem;color:#14295d;overflow-wrap:anywhere}.nd-rail-item small,.nd-chat-item small{display:block;font-size:.67rem;color:#8192b1;margin-top:.15rem}
         .nd-chat-item>span{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:#f1f5ff;color:#174fbb}
-        @media(max-width:1200px){.nd-models{gap:.2rem}.nd-model{padding:.45rem}.nd-model small{display:none}.nd-brand{min-width:180px}}
+        .nd-model-secure{background:#f4fbf8;border:1px solid #dcefe6}
+        .nd-chat-welcome{display:flex;align-items:center;gap:.85rem;padding:1rem 1.1rem;margin:.9rem 0 .65rem;border:1px solid #e2eafa;border-radius:16px;background:#fff}
+        .nd-chat-bubble{width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(135deg,#2468f5,#55a0ff);color:#fff;font-size:1.6rem}
+        .nd-chat-welcome strong{display:block;color:#10265e;font-size:1.08rem}
+        .nd-chat-welcome p{margin:.2rem 0 0;color:#7184aa;font-size:.83rem}
+        [data-testid="stMain"] .stButton>button{white-space:normal;line-height:1.35}
+        [data-testid="stMain"] [data-testid="stVerticalBlock"]>div:has(>.nd-rail-heading){padding:.3rem 0}
+                @media(max-width:1200px){.nd-models{gap:.2rem}.nd-model{padding:.45rem}.nd-model small{display:none}.nd-brand{min-width:180px}}
         @media(max-width:900px){.nd-topbar{flex-wrap:wrap}.nd-models{order:3;width:100%;justify-content:space-between}.nd-hero-copy{max-width:75%}.nd-robot-scene{opacity:.65}}
         @media(max-width:700px){[data-testid="stMain"] .block-container{padding:.6rem .65rem 1.2rem}.nd-brand{min-width:0}.nd-brand strong{font-size:1.25rem}.nd-account{margin-left:auto;min-width:0}.nd-account small{display:none}.nd-models{overflow-x:auto}.nd-model{flex:1;justify-content:center}.nd-model strong{font-size:.7rem}.nd-hero{min-height:205px;padding:1.1rem}.nd-hero-copy{max-width:100%}.nd-hero p{font-size:.86rem}.nd-robot-scene{opacity:.15;right:-8%;width:55%}.nd-feature{min-height:90px;padding:.5rem;gap:.4rem}.nd-feature-icon{width:32px;height:32px;flex-basis:32px;font-size:1rem}.nd-feature strong{font-size:.68rem}.nd-feature small{font-size:.58rem}}
         @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
