@@ -325,6 +325,7 @@ if prompt:
                         st.session_state.supabase_active_conversation = active_id
                     data_store.add_message(active_id, "user", prompt)
                     data_store.add_message(active_id, "assistant", result.text)
+                    data_store.touch_conversation(active_id)
                     if len(st.session_state.messages) == 0:
                         data_store.update_conversation_title(active_id, prompt.strip().replace("\n", " ")[:70] or "Yeni sohbet")
                     st.session_state.supabase_conversations_loaded = False
