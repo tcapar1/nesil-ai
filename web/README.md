@@ -23,7 +23,7 @@ Migration'ı canlı Supabase projesine uygulamadan önce veritabanı yedeği al�
 
 ## Dosya işleme sınırları
 - Dosyalar yalnızca özel bucket'a, oturum sahibinin klasörüne yüklenir.
-- Şu an dosya yükleme, listeleme, indirme ve onaylı silme vardır.
+- Şu an dosya yükleme, listeleme, indirme ve onaylı silme vardır. TXT ve CSV belgeleri için sınırlı metin çıkarma ve sohbet içinde bağlamlı analiz eklendi; metin AI isteğine en fazla 16.000 karakter olarak aktarılır.
 - PDF/DOCX/XLSX metin çıkarma, OCR, dosya içeriğini sohbet bağlamına aktarma henüz web sürümüne taşınmamıştır.
 - Bir seferde en fazla 5 dosya; dosya başına 10 MB. Desteklenen türler PDF, DOC/DOCX, XLS/XLSX, CSV, TXT, PNG, JPEG ve WEBP'dir.
 
