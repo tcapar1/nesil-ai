@@ -95,15 +95,45 @@ async function loadDocuments(){
  if(!box.children.length)box.textContent="Henüz belge yok.";
 }
 async function uploadDocuments(files){
- if(!session)return;for(const file of Array.from(files)){if(!file.size||file.size>10485760){toast(file.name+": en fazla 10 MB.");continue}
- const path=session.user.id+"/"+crypto.randomUUID()+"_"+file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
- const {error:up}=await supabase.storage.from("nesil-user-files").upload(path,file,{contentType:file.type||"application/octet-stream",upsert:false});if(up){toast("Yükleme: "+up.message);continue}
- const {error:db}=await supabase.from("nesil_documents").insert({user_id:session.user.id,object_path:path,file_name:file.name,file_size:file.size,content_type:file.type||"application/octet-stream"});
- if(db){await supabase.storage.from("nesil-user-files").remove([path]);toast("Belge kaydı: "+db.message)}
- }loadDocuments();
+ if(!session)return;
+ const batch=Array.from(files||[]);
+ if(batch.length>5){toast("Bir seferde en fazla 5 dosya yükleyebilirsiniz.");return}
+ const allowed=new Set(["application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","text/csv","text/plain","image/png","image/jpeg","image/webp"]);
+ for(const file of batch){
+  if(!file.size||file.size>10485760){toast(file.name+": en fazla 10 MB.");continue}
+  const mime=file.type||"application/octet-stream";
+  if(!allowed.has(mime)){toast(file.name+": desteklenmeyen dosya türü.");continue}
+  let operationId=crypto.randomUUID().replace(/-/g,"");
+  const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,180)||"document";
+  const path=session.user.id+"/"+crypto.randomUUID()+"_"+safeName;
+  try{
+   const digest=await crypto.subtle.digest("SHA-256",await file.arrayBuffer());
+   const sha256=Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
+   const {error:beginError}=await supabase.rpc("nesil_begin_document_upload",{p_operation_id:operationId,p_object_path:path,p_file_name:file.name.slice(0,180),p_file_size:file.size,p_content_type:mime,p_sha256:sha256});
+   if(beginError)throw new Error("Belge işlem kaydı açılamadı. Gerekli güvenli belge migration'ı etkin olmayabilir: "+beginError.message);
+   const {error:uploadError}=await supabase.storage.from("nesil-user-files").upload(path,file,{contentType:mime,upsert:false});
+   if(uploadError)throw uploadError;
+   const {error:finishError}=await supabase.rpc("nesil_finish_document_upload",{p_operation_id:operationId});
+   if(finishError)throw new Error("Dosya yüklendi ancak katalog kaydı tamamlanamadı. Silmeden önce destek/onarım gerekir: "+finishError.message);
+   toast(file.name+" yüklendi.");
+  }catch(error){
+   toast(file.name+": "+String(error.message||error));
+  }
+ }
+ await loadDocuments();
 }
 async function downloadDocument(d){const {data,error}=await supabase.storage.from("nesil-user-files").download(d.object_path);if(error){toast("İndirme: "+error.message);return}const url=URL.createObjectURL(data);const a=document.createElement("a");a.href=url;a.download=d.file_name;a.click();URL.revokeObjectURL(url)}
-async function deleteDocument(d){if(!confirm(d.file_name+" silinsin mi?"))return;const {error}=await supabase.storage.from("nesil-user-files").remove([d.object_path]);if(error){toast(error.message);return}const {error:db}=await supabase.from("nesil_documents").delete().eq("id",d.id).eq("user_id",session.user.id);if(db){toast("Katalog kaydı silinemedi.");return}loadDocuments()}
+async function deleteDocument(d){
+ if(!confirm(d.file_name+" silinsin mi?"))return;
+ const operationId=crypto.randomUUID().replace(/-/g,"");
+ const {error:beginError}=await supabase.rpc("nesil_begin_document_delete",{p_operation_id:operationId,p_document_id:d.id});
+ if(beginError){toast("Güvenli silme başlatılamadı: "+beginError.message);return}
+ const {error:storageError}=await supabase.storage.from("nesil-user-files").remove([d.object_path]);
+ if(storageError){toast("Dosya silinemedi; işlem kaydı kurtarma için korundu: "+storageError.message);return}
+ const {error:finishError}=await supabase.rpc("nesil_finish_document_delete",{p_operation_id:operationId});
+ if(finishError){toast("Dosya alanından silindi, katalog işlemi tamamlanamadı. İşlem kaydı kurtarma için korundu.");return}
+ await loadDocuments();
+}
 async function loadMemory(){if(!session)return;const box=$("memory-list");const {data,error}=await supabase.from("nesil_memory_items").select("id,memory_text").eq("user_id",session.user.id).order("updated_at",{ascending:false}).limit(100);if(error){box.textContent="Hafıza tablosu henüz hazır değil; migration doğrulaması gerekli.";return}box.innerHTML="";(data||[]).forEach(m=>{const row=document.createElement("div");row.className="memory-row";const p=document.createElement("p");p.textContent=m.memory_text;const b=document.createElement("button");b.textContent="Sil";b.onclick=async()=>{const {error}=await supabase.from("nesil_memory_items").delete().eq("id",m.id).eq("user_id",session.user.id);if(error)toast(error.message);else loadMemory()};row.append(p,b);box.append(row)});if(!box.children.length)box.textContent="Henüz hafıza kaydı yok."}
 $("memory-add").onclick=async()=>{const value=$("memory-input").value.trim();if(!value||value.length>4000){toast("Hafıza 1–4.000 karakter olmalı.");return}const {error}=await supabase.from("nesil_memory_items").insert({user_id:session.user.id,memory_text:value,category:"general"});if(error){toast(error.message);return}$("memory-input").value="";loadMemory()};
 $("document-upload").onclick=()=>$("library-file-input").click();$("library-file-input").onchange=e=>{uploadDocuments(e.target.files);e.target.value=""};$("document-search").oninput=loadDocuments;
