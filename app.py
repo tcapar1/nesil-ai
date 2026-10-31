@@ -227,29 +227,44 @@ with st.sidebar:
     note = st.text_area("Sohbet notu", max_chars=2000, key=f"note_{st.session_state.note_generation}", help="Amaç, tercihler ve önemli kararlar. Her soruda modele gönderilir; sohbet temizlenince silinir.")
     if memory_context:
         note = (note + "\n\nKULLANICININ KAYITLI HAFIZASI (yalnızca bağlam):\n" + memory_context)[:6000]
-    if file_store:
+    if file_store and data_store:
         st.subheader("🗂️ Özel belge kitaplığım")
+        library_search = st.text_input("Belgelerde ara", placeholder="Dosya adına göre ara…", max_chars=100, key="library_search")
         try:
-            for saved in file_store.list_files():
-                with st.expander(saved["name"]):
+            all_docs = data_store.list_documents(limit=100)
+            folders = sorted({row.get("folder_name", "Genel") for row in all_docs if row.get("folder_name")})
+            folder_options = ["Tüm klasörler"] + folders
+            selected_folder = st.selectbox("Klasör", folder_options, key="library_folder_filter")
+            docs = data_store.list_documents(
+                search=library_search,
+                folder="" if selected_folder == "Tüm klasörler" else selected_folder,
+                limit=100,
+            )
+            if not docs:
+                st.caption("Bu aramada belge bulunamadı.")
+            for saved in docs:
+                object_path = saved["object_path"]
+                title = saved["file_name"]
+                with st.expander(title + " · " + saved.get("folder_name", "Genel")):
+                    st.caption(f"{saved.get('file_size', 0) // 1024} KB · {saved.get('content_type', 'dosya')}")
                     cached_download = st.session_state.get("saved_file_download")
-                    if cached_download and cached_download.get("path") == saved["path"]:
-                        st.download_button("Dosyayı indir", cached_download["data"], file_name=saved["name"],
-                                           key="download_saved_" + saved["path"])
-                    if st.button("İndirmeyi hazırla", key="prepare_download_" + saved["path"]):
+                    if cached_download and cached_download.get("path") == object_path:
+                        st.download_button("Dosyayı indir", cached_download["data"], file_name=title,
+                                           key="download_saved_" + saved["id"])
+                    if st.button("İndirmeyi hazırla", key="prepare_download_" + saved["id"]):
                         try:
                             with st.spinner("Dosya hazırlanıyor…"):
-                                data = file_store.download(saved["path"])
-                            st.session_state.saved_file_download = {"path": saved["path"], "data": data}
+                                data = file_store.download(object_path)
+                            st.session_state.saved_file_download = {"path": object_path, "data": data}
                             st.rerun()
                         except SupabaseFileError as exc:
                             st.warning(str(exc))
-                    if st.button("Belge analiz alanına al", key="analyze_saved_" + saved["path"]):
+                    if st.button("Belge analiz alanına al", key="analyze_saved_" + saved["id"]):
                         try:
                             with st.spinner("Kayıtlı belge okunuyor…"):
-                                file_bytes = file_store.download(saved["path"])
-                                extracted = extract_bounded(UploadData(saved["name"], file_bytes))
-                            st.session_state.documents = [item for item in st.session_state.documents if item.name != saved["name"]]
+                                file_bytes = file_store.download(object_path)
+                                extracted = extract_bounded(UploadData(title, file_bytes))
+                            st.session_state.documents = [item for item in st.session_state.documents if item.name != title]
                             st.session_state.documents.append(extracted)
                             st.session_state.file_names = [item.name for item in st.session_state.documents if item.text]
                             if extracted.text:
@@ -259,14 +274,30 @@ with st.sidebar:
                             st.rerun()
                         except SupabaseFileError as exc:
                             st.warning(str(exc))
-                    if st.button("Kitaplıktan sil", key="delete_saved_" + saved["path"]):
+                    new_folder = st.text_input("Klasör adı", value=saved.get("folder_name") or "Genel",
+                                               max_chars=80, key="folder_" + saved["id"])
+                    new_tags = st.text_input("Etiketler (virgülle ayırın)",
+                                             value=", ".join(saved.get("tags") or []), max_chars=310,
+                                             key="tags_" + saved["id"])
+                    if st.button("Klasör ve etiketleri kaydet", key="save_doc_meta_" + saved["id"]):
                         try:
-                            file_store.delete(saved["path"])
-                            if st.session_state.get("saved_file_download", {}).get("path") == saved["path"]:
+                            tags = [tag.strip() for tag in new_tags.split(",") if tag.strip()]
+                            data_store.update_document_organization(saved["id"], new_folder, tags)
+                            st.success("Belge bilgileri güncellendi.")
+                            st.rerun()
+                        except SupabaseDataError as exc:
+                            st.error(str(exc))
+                    if st.button("Kitaplıktan sil", key="delete_saved_" + saved["id"]):
+                        try:
+                            file_store.delete(object_path)
+                            data_store.delete_document(saved["id"])
+                            if st.session_state.get("saved_file_download", {}).get("path") == object_path:
                                 st.session_state.pop("saved_file_download", None)
                             st.rerun()
-                        except SupabaseFileError as exc:
+                        except (SupabaseFileError, SupabaseDataError) as exc:
                             st.warning(str(exc))
+        except SupabaseDataError as exc:
+            st.warning("Belge kataloğu hazır değil. Gerekli Supabase migration henüz uygulanmamış olabilir: " + str(exc))
         except SupabaseFileError as exc:
             st.warning("Özel belge kitaplığı hazır değil: " + str(exc))
     st.divider()
@@ -295,11 +326,16 @@ with st.sidebar:
             try:
                 saved_count = 0
                 for upload in uploads:
-                    file_store.upload(upload.name, upload.getvalue())
+                    stored = file_store.upload(upload.name, upload.getvalue())
+                    try:
+                        data_store.add_document(stored["path"], stored["name"], stored["size"], stored["content_type"])
+                    except SupabaseDataError:
+                        file_store.delete(stored["path"])
+                        raise
                     saved_count += 1
                 st.success(f"{saved_count} dosya özel kitaplığınıza kaydedildi.")
                 st.rerun()
-            except SupabaseFileError as exc:
+            except (SupabaseFileError, SupabaseDataError) as exc:
                 st.error(f"{saved_count} dosya kaydedildi; kalan dosyalar kaydedilemedi: {exc}")
     for result in st.session_state.documents:
         with st.expander(f"{result.name} — {result.status}"):
