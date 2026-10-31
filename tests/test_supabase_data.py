@@ -1,7 +1,7 @@
 import json
 import unittest
 from unittest.mock import patch
-from supabase_data import SupabaseDataStore, SupabaseDataError
+from supabase_data import SupabaseDataStore, SupabaseDataError, create_data_store
 
 
 class FakeResponse:
@@ -14,6 +14,20 @@ class FakeResponse:
 class SupabaseDataTests(unittest.TestCase):
     def setUp(self):
         self.store = SupabaseDataStore("https://project.supabase.co", "public-key", "user-jwt", "user-1")
+
+    def test_factory_prefers_publishable_key_and_falls_back_to_anon(self):
+        secrets = {
+            "SUPABASE_URL": "https://project.supabase.co",
+            "SUPABASE_PUBLISHABLE_KEY": "publishable-key",
+            "SUPABASE_ANON_KEY": "legacy-anon-key",
+        }
+        store = create_data_store(secrets, "user-jwt", "user-1")
+        self.assertEqual(store.anon_key, "publishable-key")
+        fallback = create_data_store(
+            {"SUPABASE_URL": "https://project.supabase.co", "SUPABASE_ANON_KEY": "legacy-anon-key"},
+            "user-jwt", "user-1",
+        )
+        self.assertEqual(fallback.anon_key, "legacy-anon-key")
 
     def test_list_conversations_uses_user_jwt_not_service_role(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
