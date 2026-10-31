@@ -49,15 +49,18 @@ def _require_supabase_access(st):
     client = create_auth_client(st.secrets)
     st.title("🤖 Nesil AI")
     st.caption("E-posta adresiniz ve şifrenizle güvenli giriş yapın.")
-    action = st.radio("İşlem", ["Giriş yap", "Yeni hesap oluştur"], horizontal=True)
+    action = st.radio("İşlem", ["Giriş yap", "Yeni hesap oluştur", "Şifremi unuttum"], horizontal=True)
     email = st.text_input("E-posta", max_chars=254)
-    password = st.text_input("Şifre", type="password", max_chars=128)
+    password = st.text_input("Şifre", type="password", max_chars=128, disabled=action == "Şifremi unuttum")
     if st.button("Devam et", use_container_width=True):
-        if not email or "@" not in email or len(password) < 8:
+        if not email or "@" not in email or (action != "Şifremi unuttum" and len(password) < 8):
             st.error("Geçerli e-posta ve en az 8 karakterlik şifre girin.")
         else:
             try:
-                if action == "Yeni hesap oluştur":
+                if action == "Şifremi unuttum":
+                    client.request_password_reset(email)
+                    st.success("Şifre sıfırlama isteği alındı. E-posta kutunuzu ve spam klasörünü kontrol edin.")
+                elif action == "Yeni hesap oluştur":
                     result = client.sign_up(email, password)
                     if result.get("access_token") and result.get("refresh_token") and result.get("user", {}).get("id"):
                         st.session_state.supabase_access_token = result["access_token"]

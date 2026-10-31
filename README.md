@@ -47,20 +47,30 @@ Görüntüler OCR hizmetine yüklenmez. Eksik kurulum açıkça bildirilir;
 OCR kullanılmadan normal metinli PDF'ler okunmaya devam eder. OCR gerçek
 motor kurulumu ve tarama kalitesiyle ayrıca değerlendirilmelidir.
 
-Uygulama konuşmaları kalıcı veritabanına yazmaz; oturum belleğinde en fazla
-100 mesaj tutar. Genel sohbet, görev planlama ve belge modlarında soru, sınırlı sohbet geçmişi ve seçilen dosya
-kesitleri Groq'a aktarılır. Kodlama ve matematik modlarında bu içerik, uygulama aynı bilgisayarda
-çalışıyorsa yerel Ollama'ya gönderilir. Web araştırması ek hizmetlere veri aktarımı
-içerebilir. Sağlayıcıların saklama politikaları ayrıca geçerlidir.
-Dosya bağlamını kaldırmak eski sohbet mesajlarında bulunan alıntıları silmez.
-Tüm oturum içeriğini temizleme yüklenen dosyaları ve sohbeti kaldırır.
+Supabase kimlik doğrulaması etkinleştirildiğinde kullanıcı hesapları, profil,
+sohbet başlıkları, mesajlar ve kullanıcı tarafından kaydedilen hafıza kayıtları
+Supabase'de kalıcı tutulur. İstekler kullanıcının JWT'siyle yapılır; satır düzeyi
+güvenlik (RLS) kullanıcı kayıtlarını ayırır. Çıkış, sunucu tarafındaki oturum
+bilgilerini temizler. Supabase ayarları yoksa veya NESIL_AUTH_BACKEND=legacy
+seçilmişse eski kurum erişim kodu akışı kullanılabilir.
+
+Genel sohbet, görev planlama ve belge modlarında soru, sınırlı sohbet geçmişi ve
+seçilen dosya kesitleri Groq'a aktarılır. Kodlama ve matematik modlarında bu içerik,
+uygulama aynı bilgisayarda çalışıyorsa yerel Ollama'ya gönderilir. Web araştırması
+ek hizmetlere veri aktarımı içerebilir. Sağlayıcıların saklama politikaları ayrıca
+geçerlidir. Dosya bağlamını kaldırmak daha önce kaydedilmiş sohbet mesajlarını
+silmez. Sohbeti temizlemek yalnızca mevcut ekrandaki bağlamı sıfırlar; kalıcı
+sohbeti silmek için kayıtlı sohbetler bölümündeki silme onayı kullanılmalıdır.
+Kalıcı hafıza kullanıcı tarafından eklenebilir, düzenlenebilir ve silinebilir.
 
 ## Sohbet bağlamı
 
 Yan paneldeki 2.000 karakterlik **Sohbet notu** amaç, tercihler ve önemli
 kararlar için kullanıcı tarafından yazılır. Ek bir özet/model isteği yapılmaz.
 Not her soruda kullanıcı bağlamı olarak gönderilir; sistem talimatı değildir.
-Sohbet temizlenince not da silinir. Oturumlar arasında kalıcı hafıza yoktur.
+Sohbet temizlenince not da silinir. Supabase Auth ile giriş yapılmışsa ayrıca
+kullanıcının açıkça kaydettiği kalıcı hafıza kayıtları oturumlar arasında
+korunur; kullanıcı bunları düzenleyebilir veya silebilir.
 
 Geçmişteki soru/cevap turları bölünmeden seçilir. Önce yakın konuşma için
 yer ayrılır, ardından soruyla sözcük eşleşmesi olan eski turlar seçilir.
@@ -319,32 +329,81 @@ atomik kota ayırır ve sonuçları uzlaştırır. Supabase ayarı eksikse kota 
 başarısız olur ve model çağrısı yapılmaz. Yerel geliştirmede
 `NESIL_STORAGE_BACKEND=sqlite` kullanılabilir.
 
-Migration ayrıca kullanıcı profili, konuşma, mesaj ve kullanıcıya ait hafıza
-tablolarını RLS açık şekilde hazırlar. Henüz sohbet/hafıza tablolarına yazma
-ve Supabase Auth arayüzü bağlanmış değildir; bu tablolar sonraki aşama için
-şemadır. İstemci rolleri için hiçbir okuma/yazma politikası açılmaz. Gerçek
-kullanıcı kimliği, oturum ve kullanıcı onaylı hafıza akışı bağlanmadan bu
-tablolar kullanılmamalıdır. Supabase Auth entegrasyonu ve veri silme
-akışları ayrı test edilmeden kalıcı sohbet etkinleştirilmez.
+Migration dosyaları yeni/boş bir Supabase projesi için başlangıç şemasıdır.
+Mevcut canlı projede tablolar zaten bulunduğu ve migration geçmişi boş olduğu
+kontrol edildi; bu nedenle migration dosyaları canlı projeye körlemesine yeniden
+uygulanmamalıdır. Önce mevcut şema ile dosyalar karşılaştırılmalı, ardından
+migration geçmişi kontrollü biçimde uzlaştırılmalıdır.
 
+### Supabase Auth ve kalıcı kullanıcı verisi
 
-### Supabase Auth (geliştirme aşaması)
+E-posta/şifre girişini etkinleştirmek için Streamlit Secrets içinde
+`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (eski projeler için
+`SUPABASE_ANON_KEY`) ve `NESIL_AUTH_BACKEND=supabase` ayarlarını kullanın.
+Supabase Dashboard > Authentication > Providers > Email bölümünden e-posta
+sağlayıcısını ve doğrulama seçeneklerini yönetin. Şifre sıfırlama bağlantısının
+redirect URL'si ayrıca Site URL / Redirect URLs listesinde tanımlanmalıdır.
 
-E-posta/şifre girişini etkinleştirmek için Streamlit Secrets içine ayrıca
-`SUPABASE_ANON_KEY` (veya `SUPABASE_PUBLISHABLE_KEY`) ekleyin.
-Ardından `NESIL_AUTH_BACKEND=supabase` ayarını kullanın. Supabase Dashboard
-üzerinde Authentication > Providers > Email ayarları ve e-posta doğrulama
-seçenekleri yönetilmelidir. Public/anon anahtar kullanıcı istemcilerinde
-kullanılmak üzere tasarlanmıştır; service-role anahtarı yalnızca sunucuda
-kalmalıdır.
+Geliştirme dalında profil okuma/güncelleme, kalıcı sohbet oluşturma/listeleme,
+mesajları kaydetme/yükleme, sohbet silme ve kullanıcı kontrollü hafıza ekleme,
+düzenleme ve silme akışları uygulanmıştır. Kullanıcı verisi çağrıları oturumun
+JWT'siyle yapılır; erişim RLS sahiplik politikalarıyla sınırlandırılır.
+Service-role anahtarı bu istemci akışında kullanılmaz. CI'da mock testleri
+bulunur; gerçek Supabase Auth e-posta teslimi ve iki ayrı kullanıcı arasındaki
+uçtan uca izolasyon staging ortamında ayrıca denenmelidir.
 
-Yeni `202610310002_auth_rls_policies.sql` migration dosyası, ilk şema
-migration'ından sonra SQL Editor'de ayrıca uygulanmalıdır. Bu migration
-profiller, sohbetler, mesajlar ve hafıza kayıtları için kullanıcı sahipliği
-RLS politikalarını hazırlar. **Bu aşamada sohbet ve hafıza kayıtlarının
-PostgreSQL'e kaydedilmesi henüz uygulamaya bağlanmamıştır.** Giriş ekranı ve
-çıkış akışı eklenmiştir; kalıcı sohbet CRUD, token yenileme ve kullanıcı
-kontrollü hafıza akışı tamamlanıp test edilmeden bu özellikler kullanılabilir
-olarak kabul edilmemelidir. Geliştirme dalı varsayılan olarak eski erişim
-kapısını korur; Supabase Auth ancak `NESIL_AUTH_BACKEND=supabase`
-olarak açıkça seçilirse etkinleşir.
+### Özel belge kitaplığı
+
+Geliştirme dalında `supabase_files.py`, kullanıcının JWT'siyle özel Supabase
+Storage alanına dosya kaydetme, listeleme, indirme ve silme işlemlerini sağlar.
+Dosyalar herkese açık olmayan `nesil-user-files` bucket'ında, kullanıcı UUID'si
+ile başlayan nesne yollarında tutulur. Storage RLS politikaları yalnızca
+kullanıcının kendi klasörüne erişmesine izin verir. Dosya başına 10 MB, tek
+yüklemede en fazla 5 dosya ve toplam 20 MB sınırı uygulanır. Service-role
+anahtarı kullanılmaz. Kitaplık listesindeki belgeler de tek işlemle analiz
+alanına alınabilir; bu işlem aynı 5 dosya/20 MB sınırını gerçek indirilen
+boyutlar üzerinden uygular, yinelenen dosya adlarını atlar ve okunamayan
+dosyaları ayrı raporlar. Toplu yükleme mevcut açık belge listesinin yerine
+geçer; yanlışlıkla önceki analiz dosyalarıyla birleştirme yapmaz.
+
+Yeni `202610310003_private_document_storage.sql` migration dosyası bucket ve
+Storage sahiplik politikalarını oluşturur. **Bu migration canlı Supabase
+projesine henüz uygulanmadı.** Canlı projede bucket'ın bulunmadığı salt okunur
+sorguyla doğrulandı; uygulamadan önce migration yedeği ve staging doğrulaması
+gereklidir. Dosyalar yükleme sırasında ayrıca analiz edilmez; kullanıcı dosyayı
+seçerek mevcut belge çıkarma akışına göndermelidir.
+
+### Belge kataloğu ve klasörleme
+
+Kayıtlı belgeyi analiz alanına aldıktan sonra açık belgelerin içeriğinde yerel
+arama yapılabilir. Sonuçlar PDF sayfası, Word paragrafı/tablosu veya Excel
+sayfası/satırı gibi çıkarılmış kaynak konumunu gösterir. Arama işlemi ücretsiz
+yerel Python koduyla yapılır; harici embedding veya ücretli API çağrısı yoktur.
+Bu aşamada içerik araması yalnızca analiz alanına yüklenmiş/açık belgelerde
+çalışır; tüm özel kitaplık üzerinde kalıcı tam metin indeks henüz yoktur.
+
+### Belge kataloğu ve klasörleme
+
+`nesil_documents` tablosu, dosya içeriklerini değil özel Storage nesnelerinin
+kullanıcıya ait meta verilerini tutar. Kullanıcılar dosya adına göre arama
+yapabilir, klasöre göre filtreleyebilir, klasör ve etiketleri düzenleyebilir,
+belgeleri indirebilir/silebilir veya analiz alanına aktarabilir. Kayıtlar
+kullanıcı JWT'si ve RLS ile korunur. Yeni
+`202610310005_document_library_index.sql` migration dosyası tablo, indeksler,
+RLS politikaları ve asgari izinleri ekler. **Canlı Supabase'e uygulanmadı.**
+Önce staging ortamında iki kullanıcıyla izolasyon testi gereklidir.
+
+### Sohbet organizasyonu
+
+Sohbet geçmişi başlığa göre aranabilir; sohbet başlığı değiştirilebilir,
+sohbet sabitlenebilir veya arşivlenebilir. Arşivlenmiş sohbetler ayrı görünümde
+açılır. Yeni kurulum şeması `202610310001_initial_schema.sql` içinde
+`is_pinned` ve `is_archived` alanlarını içerir. Mevcut kurulumlar için
+`202610310004_conversation_organization.sql` geriye uyumlu, veri silmeyen
+migration dosyasını kullanır. **Bu migration canlı Supabase'e henüz
+uygulanmadı.** Önce staging ortamında doğrulanmalıdır.
+
+Canlı Supabase projesinin tabloları ve politikaları salt okunur denetlendi.
+Migration geçmişi boş olduğu için şema/migration uzlaştırması tamamlanmış
+sayılmaz. Supabase Auth leaked-password protection ayarı da yayın öncesi
+etkinleştirilmeli ve doğrulanmalıdır.

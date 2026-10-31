@@ -29,6 +29,17 @@ class SupabaseAuthTests(unittest.TestCase):
         self.assertEqual(request.get_header("Apikey"), "public-test-key")
         self.assertEqual(result["access_token"], "access")
 
+    def test_password_recovery_endpoint(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"{}")) as opener:
+            self.client.request_password_reset("user@example.com")
+        request = opener.call_args.args[0]
+        self.assertTrue(request.full_url.endswith("/auth/v1/recover"))
+        self.assertEqual(json.loads(request.data), {"email": "user@example.com"})
+
+    def test_password_recovery_rejects_invalid_email(self):
+        with self.assertRaises(SupabaseAuthError):
+            self.client.request_password_reset("not-an-email")
+
     def test_signup_endpoint(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b'{"user":{"id":"user-1"}}')) as opener:
             self.client.sign_up("user@example.com", "long-password")

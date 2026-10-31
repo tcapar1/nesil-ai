@@ -1,7 +1,7 @@
 import json
 import unittest
 from unittest.mock import patch
-from supabase_data import SupabaseDataStore, SupabaseDataError
+from supabase_data import SupabaseDataStore, SupabaseDataError, create_data_store
 
 
 class FakeResponse:
@@ -15,6 +15,55 @@ class SupabaseDataTests(unittest.TestCase):
     def setUp(self):
         self.store = SupabaseDataStore("https://project.supabase.co", "public-key", "user-jwt", "user-1")
 
+    def test_factory_prefers_publishable_key_and_falls_back_to_anon(self):
+        secrets = {
+            "SUPABASE_URL": "https://project.supabase.co",
+            "SUPABASE_PUBLISHABLE_KEY": "publishable-key",
+            "SUPABASE_ANON_KEY": "legacy-anon-key",
+        }
+        store = create_data_store(secrets, "user-jwt", "user-1")
+        self.assertEqual(store.anon_key, "publishable-key")
+        fallback = create_data_store(
+            {"SUPABASE_URL": "https://project.supabase.co", "SUPABASE_ANON_KEY": "legacy-anon-key"},
+            "user-jwt", "user-1",
+        )
+        self.assertEqual(fallback.anon_key, "legacy-anon-key")
+
+    def test_get_profile_is_scoped_to_authenticated_user(self):
+        body = json.dumps([{"user_id": "user-1", "display_name": "Test"}]).encode()
+        with patch("urllib.request.urlopen", return_value=FakeResponse(body)) as opener:
+            row = self.store.get_profile()
+        req = opener.call_args.args[0]
+        self.assertIn("user_id=eq.user-1", req.full_url)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+        self.assertEqual(row["display_name"], "Test")
+
+    def test_update_profile_sends_only_display_name_for_current_user(self):
+        body = json.dumps([{"user_id": "user-1", "display_name": "Yeni Ad"}]).encode()
+        with patch("urllib.request.urlopen", return_value=FakeResponse(body)) as opener:
+            row = self.store.update_profile("Yeni Ad")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "POST")
+        self.assertIn("on_conflict=user_id", req.full_url)
+        self.assertEqual(req.get_header("Prefer"), "resolution=merge-duplicates,return=representation")
+        self.assertEqual(json.loads(req.data), {"user_id": "user-1", "display_name": "Yeni Ad"})
+        self.assertEqual(row["display_name"], "Yeni Ad")
+
+    def test_update_profile_upserts_profile_for_existing_user(self):
+        body = json.dumps([{"user_id": "user-1", "display_name": "Eski Hesap"}]).encode()
+        with patch("urllib.request.urlopen", return_value=FakeResponse(body)) as opener:
+            row = self.store.update_profile("Eski Hesap")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "POST")
+        self.assertIn("on_conflict=user_id", req.full_url)
+        self.assertEqual(req.get_header("Prefer"), "resolution=merge-duplicates,return=representation")
+        self.assertEqual(json.loads(req.data), {"user_id": "user-1", "display_name": "Eski Hesap"})
+        self.assertEqual(row["display_name"], "Eski Hesap")
+
+    def test_update_profile_rejects_overlong_name(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_profile("x" * 81)
+
     def test_list_conversations_uses_user_jwt_not_service_role(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
             self.store.list_conversations()
@@ -22,6 +71,141 @@ class SupabaseDataTests(unittest.TestCase):
         self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
         self.assertEqual(req.get_header("Apikey"), "public-key")
         self.assertIn("nesil_conversations", req.full_url)
+
+    def test_touch_conversation_updates_activity_timestamp(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.touch_conversation("conversation-1")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "PATCH")
+        self.assertIn("id=eq.conversation-1", req.full_url)
+        payload = json.loads(req.data)
+        self.assertIn("updated_at", payload)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_touch_conversation_rejects_invalid_id(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.touch_conversation("")
+
+    def test_list_conversations_excludes_archived_by_default_and_sorts_pins_first(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
+            self.store.list_conversations()
+        req = opener.call_args.args[0]
+        self.assertIn("is_archived=eq.false", req.full_url)
+        self.assertIn("is_pinned.desc", req.full_url)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_list_conversations_can_include_archived(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
+            self.store.list_conversations(include_archived=True)
+        self.assertNotIn("is_archived=eq.false", opener.call_args.args[0].full_url)
+
+    def test_pin_and_archive_update_only_allowed_flags(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.pin_conversation("conversation-1", True)
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "PATCH")
+        self.assertEqual(json.loads(req.data)["is_pinned"], True)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.archive_conversation("conversation-1", True)
+        self.assertEqual(json.loads(opener.call_args.args[0].data)["is_archived"], True)
+
+    def test_conversation_flag_rejects_invalid_flag_and_id(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.set_conversation_flag("conversation-1", "user_id", True)
+        with self.assertRaises(SupabaseDataError):
+            self.store.pin_conversation("", True)
+
+    def test_update_conversation_title_is_validated_and_user_scoped(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.update_conversation_title("conversation-1", "Yeni başlık")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "PATCH")
+        self.assertIn("id=eq.conversation-1", req.full_url)
+        self.assertEqual(json.loads(req.data)["title"], "Yeni başlık")
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_update_conversation_title_rejects_invalid_values(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_conversation_title("", "Başlık")
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_conversation_title("conversation-1", "x" * 121)
+
+    def test_list_documents_filters_by_name_and_folder_with_user_jwt(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
+            self.store.list_documents(search="budget", folder="Finance")
+        req = opener.call_args.args[0]
+        self.assertIn("file_name=ilike", req.full_url)
+        self.assertIn("folder_name=eq.Finance", req.full_url)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_add_document_uses_current_user_and_private_object_path(self):
+        body = json.dumps([{"id":"doc-1","file_name":"report.pdf"}]).encode()
+        with patch("urllib.request.urlopen", return_value=FakeResponse(body)) as opener:
+            row = self.store.add_document("user-1/abc_report.pdf", "report.pdf", 1024, "application/pdf")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "POST")
+        self.assertEqual(json.loads(req.data)["user_id"], "user-1")
+        self.assertEqual(json.loads(req.data)["object_path"], "user-1/abc_report.pdf")
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+        self.assertEqual(row["id"], "doc-1")
+
+    def test_add_document_rejects_foreign_path_and_oversized_file(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.add_document("other-user/file.pdf", "file.pdf", 100, "application/pdf")
+        with self.assertRaises(SupabaseDataError):
+            self.store.add_document("user-1/file.pdf", "file.pdf", 11 * 1024 * 1024, "application/pdf")
+
+    def test_update_document_organization_validates_and_updates_selected_record(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.update_document_organization("doc-1", "Projeler", ["2026", "Rapor"])
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "PATCH")
+        self.assertIn("id=eq.doc-1", req.full_url)
+        self.assertEqual(json.loads(req.data)["folder_name"], "Projeler")
+        self.assertEqual(json.loads(req.data)["tags"], ["2026", "Rapor"])
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_update_document_organization_rejects_bad_tags(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_document_organization("doc-1", "Projeler", ["x" * 31])
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_document_organization("doc-1", " ", [])
+
+    def test_delete_document_uses_id_filter_and_user_jwt(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.delete_document("doc-1")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "DELETE")
+        self.assertIn("id=eq.doc-1", req.full_url)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_update_memory_patches_only_selected_memory(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.update_memory("memory-1", "Yeni bilgi")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "PATCH")
+        self.assertIn("id=eq.memory-1", req.full_url)
+        self.assertEqual(json.loads(req.data)["memory_text"], "Yeni bilgi")
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_update_memory_rejects_empty_and_oversized_text(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_memory("memory-1", " ")
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_memory("memory-1", "x" * 4001)
+
+    def test_delete_conversation_uses_id_filter_and_delete_method(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.delete_conversation("conversation-1")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "DELETE")
+        self.assertIn("id=eq.conversation-1", req.full_url)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_delete_conversation_rejects_empty_id(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.delete_conversation("")
 
     def test_add_message_payload(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b'[{"id":1}]')) as opener:
