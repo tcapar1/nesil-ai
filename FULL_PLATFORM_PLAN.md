@@ -93,6 +93,8 @@ Kabul: Sağlayıcı hatası kullanıcı mesajını kaybettirmez; kullanıcı ona
 - [x] Açık belge metninde yerel, ücretsiz içerik araması.
 - [x] PDF sayfa, Word paragraf/tablo ve Excel sayfa/satır konumlarını arama sonuçlarında gösterme.
 - [x] Türkçe karakter normalizasyonu ve sonuç sınırı; arama için harici API kullanılmaz.
+- [x] Kayıtlı belge listesini tek işlemle analiz alanına alma; dosya sayısı ve indirilen gerçek baytlarla 20 MB toplam sınırı.
+- [x] Aynı adlı belgeleri tek oturum yüklemesinde tekrar etmeme; indirilemeyen/okunamayan dosyaları ayrı raporlama.
 - [ ] Kaydedilmiş belgeler için arama öncesi tek tıkla analiz alanına yükleme ve içerik indeksini kalıcılaştırma.
 - [ ] Tam metin arama, belge kaynaklı cevaplarda alıntı konumlarını doğrulama.
 - [ ] Yeni belge kataloğu migration'ını staging Supabase üzerinde uygulayıp iki kullanıcıyla izolasyon testi.
