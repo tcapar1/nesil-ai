@@ -24,16 +24,16 @@ Migration'ı canlı Supabase projesine uygulamadan önce veritabanı yedeği al�
 ## Dosya işleme sınırları
 - Dosyalar yalnızca özel bucket'a, oturum sahibinin klasörüne yüklenir.
 - Şu an dosya yükleme, listeleme, indirme ve onaylı silme vardır. TXT, CSV, Markdown, PDF (ilk 30 sayfa), DOCX ve XLS/XLSX belgeleri için tarayıcıda metin çıkarma ve sohbet içinde bağlamlı analiz eklendi; metin AI isteğine en fazla 16.000 karakter olarak aktarılır. PDF/DOCX/Excel kütüphaneleri CDN üzerinden dinamik yüklenir.
-- PDF/DOCX/XLSX metin çıkarma, OCR, dosya içeriğini sohbet bağlamına aktarma henüz web sürümüne taşınmamıştır.
-- Bir seferde en fazla 5 dosya; dosya başına 10 MB. Desteklenen türler PDF, DOC/DOCX, XLS/XLSX, CSV, TXT, PNG, JPEG ve WEBP'dir.
+- Taranmış PDF'lerin ilk 3 sayfası ve PNG/JPG/WEBP görseller için Türkçe+İngilizce OCR tarayıcıda yapılır.
+- Bir seferde en fazla 5 dosya; dosya başına 10 MB. Desteklenen türler PDF, DOCX, XLS/XLSX, CSV, TXT, Markdown, PNG, JPEG ve WEBP'dir. Eski ikili DOC biçimi henüz kabul edilmez.
 
 ## Yerel Ollama
 Ollama, Cloudflare sunucusunda değil kullanıcının kendi bilgisayarında çalışır. Tarayıcı yalnızca localhost/127.0.0.1 servisine bağlanır. Ollama'da `OLLAMA_ORIGINS=https://nesilai.pages.dev` (yerel geliştirmede kullanılan localhost origin'i de) yapılandırılmalıdır. Bu ayar başka bir bilgisayara proxy sağlamaz.
 
 ## Henüz tamamlanmayanlar
 - Web araması ve kaynak doğrulamalı derin araştırma.
-- PDF/Office metin çıkarma, OCR ve sohbet içi belge analizi.
-- DOCX/PDF rapor dışa aktarma.
+- Kaynak doğrulamalı web araştırması ve derin araştırma.
+- XLSX/PPTX rapor şablonları ve gelişmiş raporlama.
 - Güvenli, izole Python çalışma alanı.
 - Gerçek görsel üretim servisi entegrasyonu.
 - Yönetici paneli ve kota yönetimi.
