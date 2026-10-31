@@ -165,9 +165,12 @@ def find_document_matches(text, query, max_results=12, snippet_chars=420):
         row_marker = re.match(r"^(Satır \d+:)", stripped)
         if marker:
             location = marker.group(1)
-            continue
+            stripped = stripped[marker.end():].strip()
+            if not stripped:
+                continue
         if row_marker:
             location = row_marker.group(1)
+            stripped = stripped[row_marker.end():].strip()
         normalized = normalize(stripped)
         score = sum(1 for term in terms if term in normalized)
         if score:
