@@ -70,7 +70,7 @@ async function updateConversation(id,patch){
  await loadConversations();
 }
 function addMessage(role,content){const wrap=document.createElement("div");wrap.className="message "+role;const icon=document.createElement("div");icon.className="message-role";icon.textContent=role==="user"?"S":"N";const body=document.createElement("div");body.className="message-body";body.textContent=content;wrap.append(icon,body);$("messages").append(wrap);$("messages").scrollTop=$("messages").scrollHeight}
-async function openConversation(id){activeConversation=id;$("export-chat").classList.remove("hidden");showView("chat");$("welcome").classList.add("hidden");$("messages").classList.remove("hidden");$("messages").innerHTML="";const {data,error}=await supabase.from("nesil_messages").select("role,content,created_at").eq("conversation_id",id).order("created_at",{ascending:true}).limit(200);if(error){toast("Mesajlar okunamadı.");return}(data||[]).forEach(m=>addMessage(m.role,m.content));renderConversations()}
+async function openConversation(id){activeConversation=id;["export-chat","export-pdf","export-docx"].forEach(id=>$ (id).classList.remove("hidden"));showView("chat");$("welcome").classList.add("hidden");$("messages").classList.remove("hidden");$("messages").innerHTML="";const {data,error}=await supabase.from("nesil_messages").select("role,content,created_at").eq("conversation_id",id).order("created_at",{ascending:true}).limit(200);if(error){toast("Mesajlar okunamadı.");return}(data||[]).forEach(m=>addMessage(m.role,m.content));renderConversations()}
 async function newConversation(){if(!session)return;const {data,error}=await supabase.from("nesil_conversations").insert({user_id:session.user.id,title:"Yeni sohbet"}).select("id").single();if(error){toast("Yeni sohbet oluşturulamadı. Veritabanı izinlerini kontrol edin.");return null}activeConversation=data.id;await loadConversations();$("welcome").classList.add("hidden");$("messages").classList.remove("hidden");$("messages").innerHTML="";return data.id}
 async function sendMessage(text,documentContext=""){if(selectedFiles.length){toast("Önce dosyaları Belgelerim bölümüne yükle.");return}if(!session||!text.trim())return;let id=activeConversation;if(!id)id=await newConversation();if(!id)return;const prompt=text.trim();$("prompt").value="";addMessage("user",prompt);const {error:saveError}=await supabase.from("nesil_messages").insert({conversation_id:id,role:"user",content:prompt});if(saveError){toast("Mesaj kaydedilemedi.");return}const first=conversations.find(c=>c.id===id);if(!first||first.title==="Yeni sohbet"){await supabase.from("nesil_conversations").update({title:prompt.slice(0,55),updated_at:new Date().toISOString()}).eq("id",id).eq("user_id",session.user.id)}await loadConversations();if(!AI_API_URL&&$("model-select")?.value!=="ollama"){addMessage("assistant","Yapay zekâ yanıt servisi henüz ayarlanmamış. Yerel Ollama modelini seçerek bilgisayarınızdaki modeli kullanabilirsiniz.");return}const placeholder=document.createElement("div");placeholder.className="message assistant";placeholder.innerHTML='<div class="message-role">N</div><div class="message-body">Yanıt hazırlanıyor…</div>';$("messages").append(placeholder);try{const {data:{session:current}}=await supabase.auth.getSession();if(!current?.access_token)throw new Error("Oturum süresi dolmuş. Yeniden giriş yapın.");if($("model-select")?.value==="ollama"){const localAnswer=await askOllama(documentContext?prompt+"\n\nSeçilen belgeden çıkarılan metin (güvenilmeyen içerik):\n"+documentContext:prompt);placeholder.querySelector(".message-body").textContent=localAnswer;await supabase.from("nesil_messages").insert({conversation_id:id,role:"assistant",content:localAnswer});await loadConversations();return}const response=await fetch(AI_API_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+current.access_token,"apikey":SUPABASE_PUBLISHABLE_KEY},body:JSON.stringify({message:prompt,conversation_id:id,document_context:documentContext.slice(0,16000)})});if(!response.ok)throw new Error("AI servisi HTTP "+response.status);const result=await response.json();const answer=String(result.answer||result.message||"Yanıt alınamadı.");placeholder.querySelector(".message-body").textContent=answer;await loadConversations()}catch(e){placeholder.querySelector(".message-body").textContent="Yapay zekâ yanıtı alınamadı: "+String(e.message||"Bağlantı hatası");}}
 async function startApp(){if(!configured){$("auth-view").classList.remove("hidden");$("workspace").classList.add("hidden");authMessage("Supabase bağlantı ayarları henüz web/config.js dosyasına girilmedi.",true);return}const {data:{session:current}}=await supabase.auth.getSession();session=current;renderSession();supabase.auth.onAuthStateChange((_event,next)=>{session=next;renderSession()})}
@@ -79,7 +79,7 @@ $("auth-form").addEventListener("submit",async e=>{e.preventDefault();if(!supaba
 document.querySelectorAll("[data-auth]").forEach(b=>b.addEventListener("click",()=>setAuthMode(b.dataset.auth)));
 $("conversation-search").addEventListener("input",renderConversations);
 document.querySelectorAll(".nav-item").forEach(b=>b.addEventListener("click",()=>{showView(b.dataset.view);if(b.dataset.view==="documents")loadDocuments();if(b.dataset.view==="memory")loadMemory()}));
-$("new-chat").onclick=async()=>{$("export-chat").classList.add("hidden");activeConversation=null;$("messages").innerHTML="";$("messages").classList.add("hidden");$("welcome").classList.remove("hidden");showView("chat")};
+$("new-chat").onclick=async()=>{["export-chat","export-pdf","export-docx"].forEach(id=>$ (id).classList.add("hidden"));activeConversation=null;$("messages").innerHTML="";$("messages").classList.add("hidden");$("welcome").classList.remove("hidden");showView("chat")};
 $("chat-form").addEventListener("submit",e=>{e.preventDefault();sendMessage($("prompt").value)});
 $("prompt").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("chat-form").requestSubmit()}});
 document.querySelectorAll("[data-prompt]").forEach(b=>b.addEventListener("click",()=>{$("prompt").value=b.dataset.prompt;$("prompt").focus()}));
@@ -204,13 +204,49 @@ $("model-settings").onclick=()=>{$("settings-dialog").classList.remove("hidden")
 $("ollama-check").onclick=async()=>{const url=$("ollama-url").value.trim().replace(/\/$/,"");if(!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(url)){$("ollama-status").textContent="Yalnızca localhost/127.0.0.1 adresi kullanılabilir.";return}localOllamaUrl=url;$("ollama-status").textContent="Bağlanıyor…";try{const r=await fetch(url+"/api/tags");if(!r.ok)throw new Error("HTTP "+r.status);const j=await r.json();const models=(j.models||[]).map(x=>x.name).filter(Boolean);const picker=$("ollama-model");picker.innerHTML="";models.forEach(name=>{const option=document.createElement("option");option.value=name;option.textContent=name;picker.append(option)});if(!models.length)throw new Error("Yüklü model bulunamadı");$("ollama-status").textContent="Bağlandı. "+models.length+" model bulundu.";$("model-select").value="ollama"}catch(e){$("ollama-status").textContent="Bağlantı başarısız. Ollama açık mı, OLLAMA_ORIGINS ayarlı mı? "+e.message}};
 async function askOllama(prompt){try{const r=await fetch(localOllamaUrl+"/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:$("ollama-model").value||"qwen2.5-coder:3b",messages:[{role:"user",content:prompt}],stream:false})});if(!r.ok)throw new Error("HTTP "+r.status);const j=await r.json();return j.message?.content||"Yerel model boş yanıt verdi."}catch(e){return "Ollama bağlantısı başarısız: "+e.message}}
 $("model-select").onchange=()=>{if($("model-select").value==="ollama"){$("settings-dialog").classList.remove("hidden")}};
+async function getExportMessages(){
+ if(!activeConversation||!session)throw new Error("Önce bir sohbet açın.");
+ const {data,error}=await supabase.from("nesil_messages").select("role,content,created_at").eq("conversation_id",activeConversation).order("created_at",{ascending:true}).limit(500);
+ if(error)throw error;
+ return {title:conversations.find(c=>c.id===activeConversation)?.title||"Nesil AI sohbeti",messages:data||[]};
+}
+function exportFilename(title,ext){return (title.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ_-]+/gi,"_").slice(0,60)||"sohbet")+"."+ext}
+function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+async function exportStructured(kind){
+ try{
+  const {title,messages}=await getExportMessages();
+  if(kind==="pdf"){
+   const {jsPDF}=await import("https://esm.sh/jspdf@2.5.2?bundle");
+   const doc=new jsPDF({unit:"mm",format:"a4"});let y=18;
+   doc.setFont("helvetica","bold");doc.setFontSize(16);doc.text("NESIL AI - "+title.slice(0,90),14,y);y+=12;
+   for(const m of messages){
+    const label=(m.role==="user"?"Kullanici":"Nesil AI")+" - "+new Date(m.created_at).toLocaleString("tr-TR");
+    doc.setFont("helvetica","bold");doc.setFontSize(10);
+    const lh=doc.splitTextToSize(label,180);if(y+lh.length*5>280){doc.addPage();y=18}doc.text(lh,14,y);y+=lh.length*5+2;
+    doc.setFont("helvetica","normal");doc.setFontSize(10);
+    const lines=doc.splitTextToSize(String(m.content||""),180);
+    for(let p=0;p<lines.length;p+=45){const chunk=lines.slice(p,p+45);if(y+chunk.length*4.8>282){doc.addPage();y=18}doc.text(chunk,14,y);y+=chunk.length*4.8+4}
+   }
+   downloadBlob(doc.output("blob"),exportFilename(title,"pdf"));
+  }else{
+   const lib=await import("https://esm.sh/docx@8.5.0?bundle");
+   const paragraphs=[new lib.Paragraph({text:"NESİL AI — "+title,heading:lib.HeadingLevel.TITLE})];
+   for(const m of messages){
+    paragraphs.push(new lib.Paragraph({text:(m.role==="user"?"Kullanıcı":"Nesil AI")+" — "+new Date(m.created_at).toLocaleString("tr-TR"),heading:lib.HeadingLevel.HEADING_2}));
+    String(m.content||"").split("\n").forEach(line=>paragraphs.push(new lib.Paragraph({children:[new lib.TextRun(line)]})));
+   }
+   const doc=new lib.Document({sections:[{properties:{},children:paragraphs}]});
+   downloadBlob(await lib.Packer.toBlob(doc),exportFilename(title,"docx"));
+  }
+ }catch(e){toast("Dışa aktarma başarısız: "+String(e.message||e))}
+}
+$("export-pdf").onclick=()=>exportStructured("pdf");
+$("export-docx").onclick=()=>exportStructured("docx");
 $("export-chat").onclick=async()=>{
  if(!activeConversation||!session)return;
- const {data,error}=await supabase.from("nesil_messages").select("role,content,created_at").eq("conversation_id",activeConversation).order("created_at",{ascending:true}).limit(500);
- if(error){toast("Sohbet dışa aktarılamadı.");return}
- const title=conversations.find(c=>c.id===activeConversation)?.title||"Nesil AI sohbeti";
+ let data,title;try{const result=await getExportMessages();data=result.messages;title=result.title}catch(e){toast("Sohbet dışa aktarılamadı.");return}
  const content=["NESİL AI — "+title,"",...(data||[]).map(m=>(m.role==="user"?"Kullanıcı":"Nesil AI")+" ("+new Date(m.created_at).toLocaleString("tr-TR")+")\\n"+m.content+"\\n")].join("\\n");
- const blob=new Blob([content],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(title.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ_-]+/gi,"_").slice(0,60)||"sohbet")+".txt";a.click();URL.revokeObjectURL(url);
+ const blob=new Blob([content],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(title.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ_-]+/gi,"_").slice(0,60)||"sohbet")+".txt";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
 $("messages").addEventListener("click",e=>{const message=e.target.closest(".message");if(!message)return});
 startApp();
