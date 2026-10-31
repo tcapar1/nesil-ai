@@ -7,8 +7,8 @@ values (
   false,
   10485760,
   array[
-    'text/plain', 'text/markdown', 'application/json', 'text/x-python',
-    'text/csv', 'application/pdf',
+    'text/plain', 'text/markdown', 'application/json', 'text/x-python', 'text/csv', 'application/pdf',
+    'application/vnd.ms-excel.sheet.macroEnabled.12',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.ms-excel'
