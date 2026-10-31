@@ -118,6 +118,11 @@ with st.sidebar:
                 st.error(str(exc))
         conversations = st.session_state.get("supabase_conversations", [])
         if conversations:
+            conversation_search = st.text_input("Sohbetlerde ara", placeholder="Başlığa göre filtrele…", key="conversation_search")
+            if conversation_search.strip():
+                needle = conversation_search.strip().casefold()
+                conversations = [row for row in conversations if needle in str(row.get("title", "")).casefold()]
+        if conversations:
             ids = [row["id"] for row in conversations]
             selected = st.session_state.get("supabase_active_conversation")
             if selected not in ids:
@@ -135,6 +140,17 @@ with st.sidebar:
                     st.rerun()
                 except SupabaseDataError as exc:
                     st.error(str(exc))
+            with st.expander("✏️ Sohbet başlığını düzenle"):
+                current_title = next((row.get("title", "") for row in conversations if row["id"] == selected_id), "")
+                renamed_title = st.text_input("Yeni başlık", value=current_title, max_chars=120, key="rename_conversation_title")
+                if st.button("Başlığı kaydet", use_container_width=True):
+                    try:
+                        data_store.update_conversation_title(selected_id, renamed_title)
+                        st.session_state.supabase_conversations_loaded = False
+                        st.success("Sohbet başlığı güncellendi.")
+                        st.rerun()
+                    except SupabaseDataError as exc:
+                        st.error(str(exc))
             st.caption("Seçili sohbeti ve içindeki mesajları kalıcı olarak silmek için aşağıyı kullanın.")
             confirm_delete = st.checkbox("Seçili sohbeti silmeyi onaylıyorum", key=f"confirm_delete_conversation_{st.session_state.delete_confirmation_generation}")
             if st.button("🗑️ Seçili sohbeti sil", disabled=not confirm_delete, use_container_width=True):
