@@ -17,6 +17,7 @@ from supabase_files import create_file_store, SupabaseFileError
 from app_service import call_with_limits
 from local_model import ask_local_model
 from ui_theme import apply_theme
+from dashboard_ui import show_dashboard_header, show_quick_actions, show_dashboard_rail
 
 
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
@@ -423,100 +424,109 @@ with st.sidebar:
             st.download_button("Kaynak kayıtlarını indir", json.dumps(records, ensure_ascii=False, indent=2), file_name="nesil_ai_kaynaklar.json", mime="application/json")
     st.caption("Sistem komutu, e-posta gönderimi ve bilgisayar kontrolü yoktur. Python Mini kodları yalnızca tarayıcıdaki ayrı çalışma alanında çalışır.")
 
-st.title("🤖 Nesil AI")
-st.caption("Sohbet et, belgeleri incele, kaynaklarıyla araştır.")
-if st.session_state.file_names:
-    st.info("Dosya kesitleri hazır: " + ", ".join(st.session_state.file_names))
-if not st.session_state.messages:
-    st.markdown("**Örnek görevler**\n- Bir iş sürecini adım adım planla.\n- Yüklediğim belgenin önemli noktalarını açıkla.\n- Araştırmayı açarak güncel bilgileri kaynaklarıyla karşılaştır.")
-for message_index, message in enumerate(st.session_state.messages):
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-        if message["role"] == "assistant":
-            show_research(st, message, message_index)
-voice_tools(st)
-runner_tools(st)
-wait = max(0, int(st.session_state.retry_at - time.time() + 0.999))
-if wait:
-    st.warning(f"Sağlayıcı bekleme süresi: yaklaşık {wait} saniye. Süre dolunca yeniden deneyin.")
-if st.session_state.last_error:
-    st.error(st.session_state.last_error)
-retry = False
-if st.session_state.pending_prompt:
-    with st.expander("Gönderilemeyen sorunuz", expanded=True):
-        st.write(st.session_state.pending_prompt)
-    retry = st.button("Soruyu yeniden dene")
-prompt = st.chat_input("Görevini buraya yaz…")
-if retry and not prompt:
-    prompt = st.session_state.pending_prompt
-review = st.session_state.get("source_review")
-if review and review.pop("queued", False) and not prompt:
-    prompt = review["prompt"]
-if prompt:
-    if len(prompt) <= 12000:
-        st.session_state.pending_prompt = prompt
-    now = time.time()
-    if now < st.session_state.retry_at:
-        st.warning("Sağlayıcının bekleme süresi henüz dolmadı. API isteği gönderilmedi.")
-    elif now - st.session_state.last_request_at < 5:
-        st.warning("İki gönderim arasında en az 5 saniye bekleyin. API isteği gönderilmedi.")
-    elif len(prompt) > 12000:
-        st.warning("Lütfen soruyu 12.000 karakterden kısa bölümlere ayırın.")
-    else:
-        st.session_state.last_request_at = now
-        st.session_state.pending_prompt = prompt
-        last_question = next((m["content"] for m in reversed(st.session_state.messages) if m["role"] == "user"), "")
-        retrieval_query = prompt + (" " + last_question if len(prompt.split()) < 6 else "")
-        context = select_context(st.session_state.documents, retrieval_query, limit=10000)
-        reviewing = bool(review and prompt == review["prompt"])
-        if reviewing:
-            context = review["context"]
-        request_web = web_enabled and not reviewing and mode not in ("Kodlama yardımcısı", "Matematik öğretmeni")
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        with st.chat_message("assistant"):
-            local_mode = mode in ("Kodlama yardımcısı", "Matematik öğretmeni")
-            label = "Kaynaklı araştırma yanıtı hazırlanıyor…" if request_web else "Yerel model yanıt hazırlıyor…" if local_mode else "Yanıt hazırlanıyor…"
-            with st.spinner(label):
-                history = [] if reviewing else st.session_state.messages
-                if local_mode:
-                    result = ask_local_model(prompt, mode, history, context, note="" if reviewing else note)
-                else:
-                    result = call_with_limits(
-                        ask_model, usage_store, principal, prompt, mode,
-                        history, context, request_web, api_key=read_api_key(st.secrets),
-                        note="" if reviewing else note,
-                    )
-            st.markdown(result.text)
-            if result.ok:
-                show_research(st, {"research": result.research, "research_requested": request_web}, len(st.session_state.messages))
-        if result.ok:
-            if data_store:
-                try:
-                    active_id = st.session_state.get("supabase_active_conversation")
-                    if not active_id:
-                        title = prompt.strip().replace("\n", " ")[:70] or "Yeni sohbet"
-                        active_id = data_store.create_conversation(title)["id"]
-                        st.session_state.supabase_active_conversation = active_id
-                    data_store.add_message(active_id, "user", prompt)
-                    data_store.add_message(active_id, "assistant", result.text)
-                    data_store.touch_conversation(active_id)
-                    if len(st.session_state.messages) == 0:
-                        data_store.update_conversation_title(active_id, prompt.strip().replace("\n", " ")[:70] or "Yeni sohbet")
-                    st.session_state.supabase_conversations_loaded = False
-                except SupabaseDataError as exc:
-                    st.warning("Yanıt üretildi ancak sohbet veritabanına kaydedilemedi: " + str(exc))
-            st.session_state.messages.extend([{"role": "user", "content": prompt}, {"role": "assistant", "content": result.text, "research_requested": request_web, "research": result.research}])
-            # Bound server memory. Provider receives a smaller whole-message window.
-            st.session_state.messages = st.session_state.messages[-100:]
-            st.session_state.pending_prompt = ""
-            st.session_state.last_error = ""
-            st.session_state.usage = result.usage or {}
-            st.session_state.pop("source_review", None)
-            st.rerun()
+main_col, rail_col = st.columns([3.2, 1.0], gap='large')
+with main_col:
+    display_name = ((st.session_state.get("supabase_profile") or {}).get("display_name") or "")
+    provider_label = "Yerel Ollama" if mode in ("Kodlama yardımcısı", "Matematik öğretmeni") else "Groq bulut modeli"
+    show_dashboard_header(display_name, provider_label)
+    show_quick_actions()
+    if st.session_state.file_names:
+        st.info("Dosya kesitleri hazır: " + ", ".join(st.session_state.file_names))
+    if not st.session_state.messages:
+        st.markdown("**Örnek görevler**\n- Bir iş sürecini adım adım planla.\n- Yüklediğim belgenin önemli noktalarını açıkla.\n- Araştırmayı açarak güncel bilgileri kaynaklarıyla karşılaştır.")
+    for message_index, message in enumerate(st.session_state.messages):
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+            if message["role"] == "assistant":
+                show_research(st, message, message_index)
+    voice_tools(st)
+    runner_tools(st)
+    wait = max(0, int(st.session_state.retry_at - time.time() + 0.999))
+    if wait:
+        st.warning(f"Sağlayıcı bekleme süresi: yaklaşık {wait} saniye. Süre dolunca yeniden deneyin.")
+    if st.session_state.last_error:
+        st.error(st.session_state.last_error)
+    retry = False
+    if st.session_state.pending_prompt:
+        with st.expander("Gönderilemeyen sorunuz", expanded=True):
+            st.write(st.session_state.pending_prompt)
+        retry = st.button("Soruyu yeniden dene")
+    prompt = st.chat_input("Mesajınızı buraya yazın…")
+    if st.session_state.get("dashboard_quick_prompt") and not prompt:
+        prompt = st.session_state.pop("dashboard_quick_prompt")
+    if retry and not prompt:
+        prompt = st.session_state.pending_prompt
+    review = st.session_state.get("source_review")
+    if review and review.pop("queued", False) and not prompt:
+        prompt = review["prompt"]
+    if prompt:
+        if len(prompt) <= 12000:
+            st.session_state.pending_prompt = prompt
+        now = time.time()
+        if now < st.session_state.retry_at:
+            st.warning("Sağlayıcının bekleme süresi henüz dolmadı. API isteği gönderilmedi.")
+        elif now - st.session_state.last_request_at < 5:
+            st.warning("İki gönderim arasında en az 5 saniye bekleyin. API isteği gönderilmedi.")
+        elif len(prompt) > 12000:
+            st.warning("Lütfen soruyu 12.000 karakterden kısa bölümlere ayırın.")
         else:
-            st.session_state.last_error = result.text
-            if result.retry_after:
-                st.session_state.retry_at = time.time() + result.retry_after
-st.caption("Nesil AI · Yanıtları ve kaynakları önemli kararlar öncesinde doğrulayın. Sohbet oturumda en fazla son 100 mesajı tutar; model bağlamına sığmayan eski mesajlar gönderilmez.")
-
+            st.session_state.last_request_at = now
+            st.session_state.pending_prompt = prompt
+            last_question = next((m["content"] for m in reversed(st.session_state.messages) if m["role"] == "user"), "")
+            retrieval_query = prompt + (" " + last_question if len(prompt.split()) < 6 else "")
+            context = select_context(st.session_state.documents, retrieval_query, limit=10000)
+            reviewing = bool(review and prompt == review["prompt"])
+            if reviewing:
+                context = review["context"]
+            request_web = web_enabled and not reviewing and mode not in ("Kodlama yardımcısı", "Matematik öğretmeni")
+            with st.chat_message("user"):
+                st.markdown(prompt)
+            with st.chat_message("assistant"):
+                local_mode = mode in ("Kodlama yardımcısı", "Matematik öğretmeni")
+                label = "Kaynaklı araştırma yanıtı hazırlanıyor…" if request_web else "Yerel model yanıt hazırlıyor…" if local_mode else "Yanıt hazırlanıyor…"
+                with st.spinner(label):
+                    history = [] if reviewing else st.session_state.messages
+                    if local_mode:
+                        result = ask_local_model(prompt, mode, history, context, note="" if reviewing else note)
+                    else:
+                        result = call_with_limits(
+                            ask_model, usage_store, principal, prompt, mode,
+                            history, context, request_web, api_key=read_api_key(st.secrets),
+                            note="" if reviewing else note,
+                        )
+                st.markdown(result.text)
+                if result.ok:
+                    show_research(st, {"research": result.research, "research_requested": request_web}, len(st.session_state.messages))
+            if result.ok:
+                if data_store:
+                    try:
+                        active_id = st.session_state.get("supabase_active_conversation")
+                        if not active_id:
+                            title = prompt.strip().replace("\n", " ")[:70] or "Yeni sohbet"
+                            active_id = data_store.create_conversation(title)["id"]
+                            st.session_state.supabase_active_conversation = active_id
+                        data_store.add_message(active_id, "user", prompt)
+                        data_store.add_message(active_id, "assistant", result.text)
+                        data_store.touch_conversation(active_id)
+                        if len(st.session_state.messages) == 0:
+                            data_store.update_conversation_title(active_id, prompt.strip().replace("\n", " ")[:70] or "Yeni sohbet")
+                        st.session_state.supabase_conversations_loaded = False
+                    except SupabaseDataError as exc:
+                        st.warning("Yanıt üretildi ancak sohbet veritabanına kaydedilemedi: " + str(exc))
+                st.session_state.messages.extend([{"role": "user", "content": prompt}, {"role": "assistant", "content": result.text, "research_requested": request_web, "research": result.research}])
+                # Bound server memory. Provider receives a smaller whole-message window.
+                st.session_state.messages = st.session_state.messages[-100:]
+                st.session_state.pending_prompt = ""
+                st.session_state.last_error = ""
+                st.session_state.usage = result.usage or {}
+                st.session_state.pop("source_review", None)
+                st.rerun()
+            else:
+                st.session_state.last_error = result.text
+                if result.retry_after:
+                    st.session_state.retry_at = time.time() + result.retry_after
+    st.caption("Nesil AI · Yanıtları ve kaynakları önemli kararlar öncesinde doğrulayın. Sohbet oturumda en fazla son 100 mesajı tutar; model bağlamına sığmayan eski mesajlar gönderilmez.")
+    
+    
+with rail_col:
+    show_dashboard_rail(data_store, SupabaseDataError)
