@@ -170,8 +170,11 @@ with st.sidebar:
                         except SupabaseDataError as exc:
                             st.error(str(exc))
                     if col2.button("Hafızayı sil", key="delete_memory_" + item["id"], use_container_width=True):
-                        data_store.delete_memory(item["id"])
-                        st.rerun()
+                        try:
+                            data_store.delete_memory(item["id"])
+                            st.rerun()
+                        except SupabaseDataError as exc:
+                            st.error(str(exc))
         except SupabaseDataError as exc:
             st.warning(str(exc))
     mode = st.selectbox("Çalışma biçimi", ["Genel yardımcı", "Görev planlama", "Kodlama yardımcısı", "Matematik öğretmeni", "Belge ve rapor yardımcısı"])
