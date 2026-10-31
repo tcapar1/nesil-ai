@@ -5,7 +5,7 @@ Türkçe öncelikli, mobil uyumlu web istemcisi.
 ## Entegre edilen özellikler
 - Supabase e-posta/parola kayıt, giriş, şifre sıfırlama ve kalıcı oturum.
 - Kullanıcıya özel sohbet geçmişi; arama, yeniden adlandırma, sabitleme ve arşivleme.
-- Sohbeti TXT olarak dışa aktarma.
+- Sohbeti TXT, PDF ve DOCX (Word) olarak dışa aktarma.
 - Composer model seçimi: Groq Edge Function veya kullanıcının kendi bilgisayarındaki Ollama.
 - Belgelerim: özel Storage bucket, kullanıcı klasörü, 10 MB/dosya sınırı, SHA-256 özeti ve işlem kayıtlı yükleme/silme.
 - Hafıza: kullanıcıya ait kayıt ekleme, listeleme ve silme; sohbet yanıtlarında ilgili hafıza bağlamı.
