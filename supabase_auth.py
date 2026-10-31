@@ -43,6 +43,9 @@ class SupabaseAuthClient:
             except Exception:
                 body = {}
             code = str(body.get("code") or body.get("error_code") or "").lower()
+            provider_message = str(body.get("message") or body.get("msg") or body.get("error_description") or "").lower()
+            if status == 401 and any(term in provider_message for term in ("api key", "apikey", "invalid api", "missing api")):
+                raise SupabaseAuthError("Supabase API anahtarı geçersiz veya URL ile aynı projeye ait değil. Streamlit Secrets içindeki SUPABASE_URL ve SUPABASE_PUBLISHABLE_KEY değerlerini aynı Supabase projesinden yeniden alın.") from None
             safe_messages = {
                 "invalid_credentials": "E-posta veya şifre yanlış. Supabase'de bu kullanıcı için şifreyi sıfırlayın.",
                 "email_not_confirmed": "E-posta doğrulanmamış. Supabase Users ekranındaki Confirmed alanını kontrol edin.",
@@ -111,5 +114,5 @@ def create_auth_client(secrets=None):
 
     return SupabaseAuthClient(
         setting("SUPABASE_URL"),
-        setting("SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY"),
+        setting("SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"),
     )
