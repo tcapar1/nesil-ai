@@ -1,4 +1,4 @@
-# NESILAI Web (Cloudflare Pages)
+# nesilai Web (Cloudflare Pages)
 
 This is a separate static web client. It does not replace the existing Streamlit app or Worker.
 
