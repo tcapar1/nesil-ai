@@ -150,21 +150,21 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(extract_file(Upload("blank.pdf", raw.getvalue())).status, "okunamadı")
 
     def test_document_search_returns_page_and_paragraph_locations(self):
-        content = "[Sayfa 2]\\n2026 bütçe tablosu ve toplam tutar 1500 TL.\\n[Sayfa 3]\\nDiğer bilgiler.\\n[Paragraf 4]\\nSözleşme tarihi 12 Ekim."
+        content = "[Sayfa 2]\n2026 bütçe tablosu ve toplam tutar 1500 TL.\n[Sayfa 3]\nDiğer bilgiler.\n[Paragraf 4]\nSözleşme tarihi 12 Ekim."
         matches = find_document_matches(content, "butce toplam tutar")
         self.assertEqual(len(matches), 1)
         self.assertEqual(matches[0]["location"], "Sayfa 2")
         self.assertIn("1500 TL", matches[0]["excerpt"])
 
     def test_document_search_supports_excel_rows_and_turkish_normalization(self):
-        content = "[Sayfa: Gelir]\\n[Sayfa: Gelir, satır 7] A7=İşlem, B7=GÖREV ÜCRETİ, C7=4500"
+        content = "[Sayfa: Gelir]\n[Sayfa: Gelir, satır 7] A7=İşlem, B7=GÖREV ÜCRETİ, C7=4500"
         matches = find_document_matches(content, "gorev ucreti")
         self.assertEqual(len(matches), 1)
         self.assertEqual(matches[0]["location"], "Sayfa: Gelir, satır 7")
         self.assertIn("4500", matches[0]["excerpt"])
 
     def test_document_search_is_bounded_and_ignores_empty_query(self):
-        content = "\\n".join(f"[Sayfa {i}]\\nBütçe toplam {i}" for i in range(60))
+        content = "\n".join(f"[Sayfa {i}]\nBütçe toplam {i}" for i in range(60))
         self.assertEqual(find_document_matches(content, "   "), [])
         self.assertLessEqual(len(find_document_matches(content, "bütçe", max_results=1000)), 30)
 
