@@ -39,7 +39,7 @@ except (ValueError, OSError, sqlite3.Error):
     st.error("Giriş veya kullanım kaydı ayarları geçersiz. Yönetici yapılandırmayı kontrol etmeli.")
     st.stop()
 defaults = {"messages": [], "documents": [], "file_names": [], "retry_at": 0,
-            "last_request_at": 0, "pending_prompt": "", "last_error": "", "usage": {}, "upload_generation": 0, "note_generation": 0, "memory_input_generation": 0}
+            "last_request_at": 0, "pending_prompt": "", "last_error": "", "usage": {}, "upload_generation": 0, "note_generation": 0, "memory_input_generation": 0, "delete_confirmation_generation": 0}
 for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
@@ -127,14 +127,14 @@ with st.sidebar:
                 except SupabaseDataError as exc:
                     st.error(str(exc))
             st.caption("Seçili sohbeti ve içindeki mesajları kalıcı olarak silmek için aşağıyı kullanın.")
-            confirm_delete = st.checkbox("Seçili sohbeti silmeyi onaylıyorum", key="confirm_delete_conversation")
+            confirm_delete = st.checkbox("Seçili sohbeti silmeyi onaylıyorum", key=f"confirm_delete_conversation_{st.session_state.delete_confirmation_generation}")
             if st.button("🗑️ Seçili sohbeti sil", disabled=not confirm_delete, use_container_width=True):
                 try:
                     data_store.delete_conversation(selected_id)
                     st.session_state.messages = []
                     st.session_state.pop("supabase_active_conversation", None)
                     st.session_state.supabase_conversations_loaded = False
-                    st.session_state.pop("confirm_delete_conversation", None)
+                    st.session_state.delete_confirmation_generation += 1
                     st.success("Sohbet silindi.")
                     st.rerun()
                 except SupabaseDataError as exc:
