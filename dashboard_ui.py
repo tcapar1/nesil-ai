@@ -11,7 +11,7 @@ def show_dashboard_header(display_name, provider_label, mode_label):
           <div class="nd-brand"><div class="nd-logo">🤖</div><div><strong>Nesil AI</strong>
           <span>Sohbet et, belgeleri incele, araştır, üret.</span></div></div>
           <div class="nd-models">
-            <div class="nd-model nd-model-primary"><b>ϟ</b><span><strong>{html.escape(provider_label)}</strong><small>Aktif model sağlayıcısı</small></span></div>
+            <div class="nd-model nd-model-primary"><b>ϟ</b><span><strong>""" + html.escape(provider_label) + """</strong><small>Aktif model sağlayıcısı</small></span></div>
             <div class="nd-model nd-model-secure"><b>✓</b><span><strong>Güvenli Alan</strong><small>Kişisel çalışma alanınız</small></span></div>
           </div>
           <div class="nd-account"><div class="nd-avatar">""" + (name[:1].upper() if name else "N") + """</div>
