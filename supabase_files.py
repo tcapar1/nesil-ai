@@ -67,7 +67,7 @@ class SupabaseFileStore:
         if not isinstance(raw, bytes) or not raw or len(raw) > MAX_FILE_BYTES:
             raise SupabaseFileError("Dosya boş veya 10 MB sınırını aşıyor.")
         # Random prefix prevents collisions and avoids overwriting an earlier upload.
-        object_name = f"{self.user_id}/{uuid.uuid4().hex}/{name}"
+        object_name = f"{self.user_id}/{uuid.uuid4().hex}_{name}"
         path = "/storage/v1/object/" + BUCKET + "/" + "/".join(urllib.parse.quote(p, safe="._-") for p in object_name.split("/"))
         mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
         self._request("POST", path, raw, mime)
@@ -97,7 +97,7 @@ class SupabaseFileStore:
 
     def delete(self, object_path):
         self._validate_path(object_path)
-        self._request("DELETE", "/storage/v1/object/" + BUCKET, [object_path], "application/json")
+        self._request("POST", "/storage/v1/object/" + BUCKET, {"prefixes": [object_path]}, "application/json")
 
     def _validate_path(self, object_path):
         if not isinstance(object_path, str) or not object_path.startswith(self.user_id + "/") or ".." in object_path.split("/"):
