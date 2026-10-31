@@ -2,21 +2,43 @@
 
 Türkçe öncelikli, mobil uyumlu web istemcisi.
 
-## Entegre edilen istemci özellikleri
+## Entegre edilen özellikler
 - Supabase e-posta/parola kayıt, giriş, şifre sıfırlama ve kalıcı oturum.
-- Kullanıcıya özel sohbet listesi ve mesaj geçmişi.
-- Composer model seçimi: Groq Edge Function veya yerel Ollama.
-- Belgelerim ekranı: özel Supabase Storage alanına dosya yükleme, listeleme, indirme ve kullanıcı onayıyla silme.
-- Hafıza ekranı: kullanıcının kendi hafıza kayıtlarını ekleme, listeleme ve silme.
-- Türkçe ve mobil uyumlu mevcut görsel tasarım korunmuştur.
+- Kullanıcıya özel sohbet geçmişi; arama, yeniden adlandırma, sabitleme ve arşivleme.
+- Sohbeti TXT olarak dışa aktarma.
+- Composer model seçimi: Groq Edge Function veya kullanıcının kendi bilgisayarındaki Ollama.
+- Belgelerim: özel Storage bucket, kullanıcı klasörü, 10 MB/dosya sınırı, SHA-256 özeti ve işlem kayıtlı yükleme/silme.
+- Hafıza: kullanıcıya ait kayıt ekleme, listeleme ve silme; sohbet yanıtlarında ilgili hafıza bağlamı.
+- Mevcut koyu tema ve mobil yerleşim korunmuştur.
 
-## Güvenlik ve sınırlamalar
-- Tarayıcıya yalnızca Supabase publishable key verilir. Service-role ve Groq anahtarları asla istemciye konmaz.
-- Belge alanı için `202610310003_private_document_storage.sql` ve `202610310005_document_library_index.sql` migration'ları hedef Supabase projesinde uygulanmış olmalıdır. Hafıza tablosu temel şemada bulunur. Migration'ları canlıda uygulamadan önce mevcut şema karşılaştırılmalı ve yedek alınmalıdır.
-- Dosyalar kullanıcı JWT'si, özel bucket ve RLS ile kullanıcı klasörüne yazılır. Şu an belge yükleme/indirme vardır; PDF/DOCX/XLSX içerik çıkarma ve sohbet bağlamına otomatik aktarma bu web istemcisine henüz port edilmemiştir.
-- Yerel Ollama seçeneği yalnızca aynı bilgisayarda çalışan localhost servisine bağlanır. Ollama'da `OLLAMA_ORIGINS=https://nesilai.pages.dev` (ve yerel test için uygun localhost origin) yapılandırılmalıdır. Bu bağlantı Cloudflare'den uzaktaki bilgisayara proxy değildir; tarayıcı kullanıcısının kendi cihazındaki Ollama'ya erişir.
-- Web araması, derin araştırma, gerçek görsel üretimi, güvenli Python sandbox ve yönetici/kota paneli henüz tamamlanmamıştır; eski Streamlit kodu doğrudan web istemcisine taşınmamıştır.
-- Dosya silme kullanıcı onayı ister. Sohbet ve hafıza verileri Supabase RLS ile korunmalıdır.
+## Supabase doğrulama durumu
+Hedef Supabase projesinde şu anda `nesil_documents`, `nesil_document_operations`, `nesil_memory_items`, sohbet tabloları ve `nesil-user-files` özel bucket'ı bulunmaktadır. Bucket 10 MB sınırıyla ve authenticated kullanıcı klasör politikalarıyla yapılandırılmıştır. Sohbet, belge, hafıza ve Storage RLS politikaları kontrol edilmiştir.
+
+Supabase Advisor şu konuları raporlamıştır:
+- Dört belge işlem RPC fonksiyonu `public` şemasında SECURITY DEFINER olarak authenticated rolüne açık. Bu PR'da bunları `private` şemasına taşıyan ve public tarafta SECURITY INVOKER sarmalayıcıları bırakan `20261101000100_secure_document_rpc_schema.sql` migration'ı eklendi. Bu migration henüz hedef projeye uygulanmadı.
+- Usage/login yardımcı tablolarında doğrudan kullanıcı politikası yoktur; bunlar istemciye açılmamalı, yalnızca sunucu tarafında kullanılmalıdır.
+- Auth için sızdırılmış parola koruması kapalıdır; Supabase Auth ayarlarından ayrıca etkinleştirilmesi önerilir.
+
+Migration'ı canlı Supabase projesine uygulamadan önce veritabanı yedeği alınmalı, migration staging/yerel ortamda test edilmeli ve advisor yeniden çalıştırılmalıdır. Bu web istemcisi canlı şema değişikliği yapmaz.
+
+## Dosya işleme sınırları
+- Dosyalar yalnızca özel bucket'a, oturum sahibinin klasörüne yüklenir.
+- Şu an dosya yükleme, listeleme, indirme ve onaylı silme vardır.
+- PDF/DOCX/XLSX metin çıkarma, OCR, dosya içeriğini sohbet bağlamına aktarma henüz web sürümüne taşınmamıştır.
+- Bir seferde en fazla 5 dosya; dosya başına 10 MB. Desteklenen türler PDF, DOC/DOCX, XLS/XLSX, CSV, TXT, PNG, JPEG ve WEBP'dir.
+
+## Yerel Ollama
+Ollama, Cloudflare sunucusunda değil kullanıcının kendi bilgisayarında çalışır. Tarayıcı yalnızca localhost/127.0.0.1 servisine bağlanır. Ollama'da `OLLAMA_ORIGINS=https://nesilai.pages.dev` (yerel geliştirmede kullanılan localhost origin'i de) yapılandırılmalıdır. Bu ayar başka bir bilgisayara proxy sağlamaz.
+
+## Henüz tamamlanmayanlar
+- Web araması ve kaynak doğrulamalı derin araştırma.
+- PDF/Office metin çıkarma, OCR ve sohbet içi belge analizi.
+- DOCX/PDF rapor dışa aktarma.
+- Güvenli, izole Python çalışma alanı.
+- Gerçek görsel üretim servisi entegrasyonu.
+- Yönetici paneli ve kota yönetimi.
+
+Eski Streamlit/Python kodu doğrudan tarayıcıya kopyalanmamıştır. Bu özellikler ayrı, güvenli servisler olarak uyarlanmalıdır.
 
 ## Cloudflare Pages
 - Framework preset: None
