@@ -145,8 +145,9 @@ def extract_file(upload, ocr=False):
         if not text.strip() or (ext == "pdf" and not any((p.split("\n", 1)[-1]).strip() for p in parts)):
             return FileResult(name, scope="Okunabilir metin bulunamadı. Taranmış PDF için OCR gerekebilir. " + scope)
         return FileResult(name, text, "kısmen okundu" if sampled else "okundu", scope + f" Çıkarılan kesit: {len(text)} karakter.")
-    except Exception:
-        return FileResult(name, scope="Dosya okunamadı. Biçim, bozulma veya parola korumasını kontrol edin.")
+    except Exception as exc:
+        # Show only the exception class, never file contents or local paths.
+        return FileResult(name, scope=f"Dosya okunamadı ({type(exc).__name__}). Biçim, bozulma, parola koruması veya Excel çalışma kitabı uyumluluğunu kontrol edin.")
 
 
 def find_document_matches(text, query, max_results=12, snippet_chars=420):
