@@ -98,7 +98,7 @@ async function uploadDocuments(files){
  if(!session)return;
  const batch=Array.from(files||[]);
  if(batch.length>5){toast("Bir seferde en fazla 5 dosya yükleyebilirsiniz.");return}
- const allowed=new Set(["application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","text/csv","text/plain","image/png","image/jpeg","image/webp"]);
+ const allowed=new Set(["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","text/csv","text/plain","image/png","image/jpeg","image/webp"]);
  for(const file of batch){
   if(!file.size||file.size>10485760){toast(file.name+": en fazla 10 MB.");continue}
   const mime=file.type||"application/octet-stream";
