@@ -7,7 +7,7 @@ enableCORS = true
 gatherUsageStats = false
 
 [theme]
-primaryColor = "#2563EB"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F3F6FB"
-textColor = "#152238"
+primaryColor = "#315BE8"
+backgroundColor = "#F7F9FD"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#17243B"

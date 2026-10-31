@@ -16,9 +16,11 @@ from supabase_data import create_data_store, SupabaseDataError
 from supabase_files import create_file_store, SupabaseFileError
 from app_service import call_with_limits
 from local_model import ask_local_model
+from ui_theme import apply_theme
 
 
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
+apply_theme()
 try:
     usage_store = create_usage_store()
     principal = require_access(st, usage_store)
