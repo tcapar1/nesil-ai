@@ -150,6 +150,27 @@ class SupabaseDataTests(unittest.TestCase):
         self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
         self.assertEqual(row["id"], "doc-1")
 
+    def test_add_document_retry_returns_existing_row_without_overwriting_metadata(self):
+        existing = [{"id": "doc-1", "object_path": "user-1/op_report.pdf", "file_name": "renamed.pdf", "tags": ["important"]}]
+        with patch("urllib.request.urlopen", side_effect=[FakeResponse(b"[]"), FakeResponse(json.dumps(existing).encode())]) as opener:
+            row = self.store.add_document("user-1/op_report.pdf", "report.pdf", 1024, "application/pdf")
+        self.assertEqual(row["file_name"], "renamed.pdf")
+        self.assertEqual(row["tags"], ["important"])
+        self.assertEqual(opener.call_count, 2)
+        self.assertIn("on_conflict=object_path", opener.call_args_list[0].args[0].full_url)
+        self.assertEqual(opener.call_args_list[0].args[0].get_header("Prefer"), "resolution=ignore-duplicates,return=representation")
+
+    def test_rename_document_keeps_extension_and_rejects_path_or_extension_change(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.rename_document("doc-1", "report.pdf", "new report.pdf")
+        request = opener.call_args.args[0]
+        self.assertEqual(request.get_method(), "PATCH")
+        self.assertEqual(json.loads(request.data)["file_name"], "new report.pdf")
+        with self.assertRaises(SupabaseDataError):
+            self.store.rename_document("doc-1", "report.pdf", "report.docx")
+        with self.assertRaises(SupabaseDataError):
+            self.store.rename_document("doc-1", "report.pdf", "../report.pdf")
+
     def test_add_document_rejects_foreign_path_and_oversized_file(self):
         with self.assertRaises(SupabaseDataError):
             self.store.add_document("other-user/file.pdf", "file.pdf", 100, "application/pdf")
@@ -213,6 +234,44 @@ class SupabaseDataTests(unittest.TestCase):
         req = opener.call_args.args[0]
         body = json.loads(req.data)
         self.assertEqual(body, {"conversation_id":"conv-1","role":"user","content":"Merhaba"})
+
+    def test_add_messages_writes_both_turns_in_one_request(self):
+        messages = [
+            {"role": "user", "content": "Merhaba"},
+            {"role": "assistant", "content": "Merhaba!"},
+        ]
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.add_messages("conv-1", messages)
+        self.assertEqual(opener.call_count, 1)
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "POST")
+        self.assertEqual(json.loads(req.data), [
+            {"conversation_id": "conv-1", **message} for message in messages
+        ])
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+        self.assertEqual(req.get_header("Prefer"), "return=minimal")
+
+    def test_add_messages_rejects_invalid_batch_before_network(self):
+        with patch("urllib.request.urlopen") as opener:
+            with self.assertRaises(SupabaseDataError):
+                self.store.add_messages("conv-1", [
+                    {"role": "user", "content": "Soru"},
+                    {"role": "system", "content": "geçersiz"},
+                ])
+        opener.assert_not_called()
+
+    def test_add_messages_rejects_oversized_batch_before_network(self):
+        with patch("urllib.request.urlopen") as opener:
+            with self.assertRaises(SupabaseDataError):
+                self.store.add_messages("conv-1", [
+                    {"role": "user", "content": "x" * 50000} for _ in range(20)
+                ])
+        opener.assert_not_called()
+
+    def test_list_messages_uses_id_as_stable_tiebreaker(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
+            self.store.list_messages("conv-1")
+        self.assertIn("order=created_at.asc%2Cid.asc", opener.call_args.args[0].full_url)
 
     def test_add_memory_rejects_empty_and_oversized(self):
         with self.assertRaises(SupabaseDataError): self.store.add_memory("")

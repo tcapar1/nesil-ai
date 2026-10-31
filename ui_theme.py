@@ -2,7 +2,7 @@
 import streamlit as st
 
 
-def apply_theme():
+def apply_theme(theme="Açık"):
     st.markdown(
         """
         <style>
@@ -77,3 +77,36 @@ def apply_theme():
         </style>
         """, unsafe_allow_html=True
     )
+    if theme == "Koyu":
+        st.markdown(
+            """
+            <style>
+            :root{--navy:#e7efff;--blue:#78a7ff;--blue2:#99bdff;--muted:#b1c0dc;--line:#33435f;--panel:#17243a}
+            .stApp{background:linear-gradient(130deg,#101827 0%,#121d30 54%,#17243a 100%);color:#e7efff}
+            [data-testid="stHeader"]{background:rgba(16,24,39,.97);box-shadow:0 1px 0 #27364e}
+            [data-testid="stSidebar"]{background:linear-gradient(180deg,#131f33,#101827);border-color:#293852}
+            [data-testid="stSidebar"] h1,h1,h2,h3{color:#e7efff!important}
+            p,label,.stCaption,[data-testid="stMarkdownContainer"]{color:#b1c0dc}
+            .nd-topbar,.nd-models,.nd-model,.nd-account,.nd-feature,.nd-chat-welcome,
+            [data-testid="stChatMessage"],[data-testid="stChatInput"],
+            [data-testid="stExpander"],[data-testid="stFileUploader"]{
+              background:#192840!important;color:#e7efff;border-color:#354761!important
+            }
+            .nd-brand strong,.nd-account strong,.nd-feature strong,.nd-chat-welcome strong,
+            .nd-rail-heading strong,.nd-rail-item strong,.nd-chat-item strong{color:#e7efff}
+            .nd-hero{background:linear-gradient(112deg,#1c2b49 0%,#213e66 56%,#245481 100%);border-color:#36577f}
+            .nd-hero h1,.nd-hero p{color:#e7efff!important}
+            .nd-hero-tags span{color:#d8e7ff;background:#ffffff16;border-color:#ffffff2a}
+            .nd-logo,.nd-avatar,.nd-feature-icon,.nd-file-icon,.nd-chat-item>span{background:#23395d;color:#cfe0ff}
+            .nd-model-primary{background:linear-gradient(120deg,#2856aa,#3675ca);color:white}
+            .nd-model-secure{background:#1b3938!important;border-color:#315a55!important}
+            .stButton>button,.stDownloadButton>button{background:#1a2a43;color:#e1ebff;border-color:#3a4d69}
+            [data-testid="stMain"] .stButton>button{background:linear-gradient(145deg,#1c2c45,#192840);color:#e1ebff;border-color:#364b6a}
+            [data-testid="stTextInput"] input,[data-testid="stTextArea"] textarea,
+            [data-testid="stSelectbox"] [data-baseweb="select"]>div{background:#18263d!important;color:#e7efff!important;border-color:#3a4d69!important}
+            [data-testid="stChatInput"] textarea{color:#e7efff}
+            [data-testid="stAlert"]{background:#1b2a42}
+            .nd-rail-item,.nd-chat-item{border-color:#293a55}
+            </style>
+            """, unsafe_allow_html=True
+        )

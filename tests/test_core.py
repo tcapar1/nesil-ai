@@ -129,6 +129,44 @@ class CoreTests(unittest.TestCase):
         self.assertIn("kalem", result.text)
         self.assertIn("İki", result.text)
         self.assertEqual(result.status, "kısmen okundu")
+        self.assertEqual(result.chart_data["label"], "Bir")
+        self.assertEqual(result.chart_data["rows"][0][:2], ["kalem", 42])
+
+    def test_csv_includes_bounded_plot_data(self):
+        result = extract_file(Upload("sales.csv", b"urun,tutar\nA,10\nB,20"))
+        self.assertEqual(result.chart_data["columns"], ["urun", "tutar"])
+        self.assertEqual(result.chart_data["rows"], [["A", "10"], ["B", "20"]])
+
+    def test_image_requires_opt_in_ocr_and_uses_local_reader(self):
+        from PIL import Image
+        raw = io.BytesIO()
+        Image.new("RGB", (20, 20), "white").save(raw, format="PNG")
+        upload = Upload("scan.png", raw.getvalue())
+        disabled = extract_file(upload, ocr=False)
+        self.assertIn("OCR", disabled.scope)
+        with patch("ocr_reader.ocr_image", return_value="Makbuz no 123") as reader:
+            result = extract_file(upload, ocr=True)
+        reader.assert_called_once()
+        self.assertIn("Makbuz no 123", result.text)
+
+    def test_pptx_extracts_slide_text_and_table_with_locations(self):
+        from pptx import Presentation
+        from pptx.util import Inches
+        presentation = Presentation()
+        slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+        box = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(5), Inches(1))
+        box.text = "Çeyrek sonuçları"
+        table = slide.shapes.add_table(2, 2, Inches(1), Inches(2), Inches(4), Inches(1)).table
+        table.cell(0, 0).text = "Ürün"
+        table.cell(0, 1).text = "Satış"
+        table.cell(1, 0).text = "Kalem"
+        table.cell(1, 1).text = "24"
+        raw = io.BytesIO()
+        presentation.save(raw)
+        result = extract_file(Upload("sonuc.pptx", raw.getvalue()))
+        self.assertIn("[Slayt 1]", result.text)
+        self.assertIn("Çeyrek sonuçları", result.text)
+        self.assertIn("Kalem | 24", result.text)
 
     def test_docx_text_and_table(self):
         from docx import Document

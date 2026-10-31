@@ -19,8 +19,12 @@ def call_with_limits(provider, store, subject, prompt, mode, history, context, w
             user_requests=int(os.environ.get("NESIL_USER_DAILY_REQUESTS", "100")))
     except (UsageLimit, InputBudgetError) as exc:
         return ModelResult(str(exc))
-    except Exception:
-        logging.getLogger("nesil.usage").error("usage_reservation_failed")
+    except Exception as exc:
+        # Keep exception messages out of logs because HTTP libraries can include
+        # URLs, request details, or credentials in them.
+        logging.getLogger("nesil.usage").error(
+            "usage_reservation_failed error_type=%s", type(exc).__name__
+        )
         return ModelResult("Kullanım sınırı kaydına erişilemiyor. Yönetici ayarları kontrol etmeli; model isteği gönderilmedi.")
     result = provider(prompt, mode, history, context, web_enabled, api_key=api_key, note=note)
     try:

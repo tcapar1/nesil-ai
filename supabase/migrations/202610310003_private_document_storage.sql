@@ -11,6 +11,8 @@ values (
     'application/vnd.ms-excel.sheet.macroEnabled.12',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'image/png', 'image/jpeg', 'image/tiff', 'image/bmp',
     'application/vnd.ms-excel'
   ]
 )

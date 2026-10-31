@@ -1,6 +1,8 @@
 """Private per-user document storage using Supabase Storage and the user's JWT."""
 import json
+import hashlib
 import mimetypes
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -9,7 +11,8 @@ import uuid
 
 BUCKET = "nesil-user-files"
 MAX_FILE_BYTES = 10 * 1024 * 1024
-ALLOWED_EXTENSIONS = {"txt", "md", "json", "py", "log", "csv", "pdf", "docx", "xlsx", "xlsm"}
+ALLOWED_EXTENSIONS = {"txt", "md", "json", "py", "log", "csv", "pdf", "docx", "xlsx", "xlsm", "pptx",
+                      "png", "jpg", "jpeg", "tif", "tiff", "bmp"}
 
 
 class SupabaseFileError(ValueError):
@@ -28,9 +31,11 @@ class SupabaseFileStore:
         if not self.url.startswith("https://") and not self.url.startswith(("http://localhost", "http://127.0.0.1")):
             raise SupabaseFileError("Supabase adresi HTTPS olmalı.")
 
-    def _request(self, method, path, body=None, content_type=None):
+    def _request(self, method, path, body=None, content_type=None, extra_headers=None):
         headers = {"apikey": self.public_key, "Authorization": "Bearer " + self.access_token,
                    "Accept": "application/json", "User-Agent": "NesilAI/1.3"}
+        if extra_headers:
+            headers.update(extra_headers)
         if content_type:
             headers["Content-Type"] = content_type
         if body is not None and content_type == "application/json":
@@ -66,18 +71,23 @@ class SupabaseFileStore:
         safe = urllib.parse.quote(filename, safe="._-")
         return f"{self.user_id}/{safe}"
 
-    def upload(self, filename, raw):
+    def upload(self, filename, raw, operation_id=None):
         name = str(filename or "").replace("\\", "/").split("/")[-1].strip()
         ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
         if not name or len(name) > 180 or ext not in ALLOWED_EXTENSIONS:
             raise SupabaseFileError("Dosya adı veya türü desteklenmiyor.")
         if not isinstance(raw, bytes) or not raw or len(raw) > MAX_FILE_BYTES:
             raise SupabaseFileError("Dosya boş veya 10 MB sınırını aşıyor.")
-        # Random prefix prevents collisions and avoids overwriting an earlier upload.
-        object_name = f"{self.user_id}/{uuid.uuid4().hex}_{name}"
+        # A caller may reuse the same operation ID after a timeout. The content
+        # digest keeps changed files separate; upsert only repeats identical bytes.
+        if operation_id is not None and (not isinstance(operation_id, str) or not re.fullmatch(r"[a-f0-9]{32}", operation_id)):
+            raise SupabaseFileError("Dosya işlemi kimliği geçersiz.")
+        operation_id = operation_id or uuid.uuid4().hex
+        digest = hashlib.sha256(raw).hexdigest()[:16]
+        object_name = f"{self.user_id}/{operation_id}{digest}_{name}"
         path = "/storage/v1/object/" + BUCKET + "/" + "/".join(urllib.parse.quote(p, safe="._-") for p in object_name.split("/"))
         mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
-        self._request("POST", path, raw, mime)
+        self._request("POST", path, raw, mime, {"X-upsert": "true"})
         return {"name": name, "path": object_name, "size": len(raw), "content_type": mime}
 
     def list_files(self, limit=100):

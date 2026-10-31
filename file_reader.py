@@ -9,7 +9,9 @@ MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_TOTAL_BYTES = 20 * 1024 * 1024
 MAX_FILES = 5
 MAX_TEXT = 240000
-ALLOWED = ("txt", "md", "json", "py", "log", "csv", "pdf", "docx", "xlsx", "xlsm")
+ALLOWED = ("txt", "md", "json", "py", "log", "csv", "pdf", "docx", "xlsx", "xlsm", "pptx",
+           "png", "jpg", "jpeg", "tif", "tiff", "bmp")
+IMAGE_TYPES = {"png", "jpg", "jpeg", "tif", "tiff", "bmp"}
 
 
 @dataclass
@@ -18,6 +20,7 @@ class FileResult:
     text: str = ""
     status: str = "okunamadı"
     scope: str = ""
+    chart_data: dict | None = None
 
 
 def extract_file(upload, ocr=False):
@@ -32,8 +35,9 @@ def extract_file(upload, ocr=False):
         return FileResult(name, scope="10 MB sınırı aşıldı.")
     parts, scope = [], ""
     sampled = False
+    chart_headers, chart_rows, chart_label = [], [], ""
     try:
-        if ext in ("docx", "xlsx", "xlsm"):
+        if ext in ("docx", "xlsx", "xlsm", "pptx"):
             with zipfile.ZipFile(io.BytesIO(raw)) as archive:
                 entries = archive.infolist()
                 if len(entries) > 2000 or sum(e.file_size for e in entries) > 50 * 1024 * 1024:
@@ -56,6 +60,11 @@ def extract_file(upload, ocr=False):
                     break
                 if len(row) > 50:
                     sampled = True
+                if index == 1:
+                    chart_headers = row[:20]
+                    chart_label = "CSV"
+                elif index <= 501:
+                    chart_rows.append(row[:20])
                 line = f"Satır {index}: " + " | ".join(cell[:500] for cell in row[:50])
                 sampled = sampled or any(len(cell) > 500 for cell in row[:50])
                 parts.append(line)
@@ -115,17 +124,64 @@ def extract_file(upload, ocr=False):
                         break
             sampled = True
             scope = "Word ana metni ve en fazla 30 tablodan ilk 1.000 satır/50 sütun; toplam 240.000 karakter. Üstbilgi, metin kutusu ve görseller kapsam dışı."
+        elif ext == "pptx":
+            from pptx import Presentation
+            presentation = Presentation(io.BytesIO(raw))
+            sampled = len(presentation.slides) > 200
+            total = 0
+            for slide_index in range(min(len(presentation.slides), 200)):
+                slide_number = slide_index + 1
+                slide = presentation.slides[slide_index]
+                slide_parts = []
+                for shape in slide.shapes:
+                    if getattr(shape, "has_text_frame", False):
+                        value = shape.text.strip()
+                        if value:
+                            slide_parts.append(value[:5000])
+                    if getattr(shape, "has_table", False):
+                        for row_index in range(min(len(shape.table.rows), 200)):
+                            row_number = row_index + 1
+                            row = shape.table.rows[row_index]
+                            cells = [row.cells[index].text.strip()[:500]
+                                     for index in range(min(len(row.cells), 30))]
+                            if any(cells):
+                                slide_parts.append(f"Tablo satırı {row_number}: " + " | ".join(cells))
+                slide_text = f"[Slayt {slide_number}]\n" + "\n".join(slide_parts)
+                total += len(slide_text)
+                parts.append(slide_text[:MAX_TEXT + 1])
+                if total > MAX_TEXT:
+                    sampled = True
+                    break
+            scope = "PowerPoint: ilk 200 slayt; slayt metinleri ve tablolar. Gömülü görsel, grafik serisi, animasyon ve konuşmacı notları kapsam dışı."
+        elif ext in IMAGE_TYPES:
+            if not ocr:
+                return FileResult(name, scope="Görsel OCR için 'yerel OCR kullan' seçeneğini etkinleştirin.")
+            from ocr_reader import ocr_image
+            try:
+                image_text = ocr_image(raw)
+            except Exception as exc:
+                return FileResult(name, scope=f"Görsel OCR kullanılamadı ({type(exc).__name__}). Tesseract ve Türkçe/İngilizce dil paketlerini kontrol edin.")
+            if not image_text.strip():
+                return FileResult(name, scope="Görselde okunabilir metin bulunamadı. Daha net bir görsel deneyin.")
+            parts = ["[Görsel OCR]\n" + image_text]
+            sampled = len(image_text) > MAX_TEXT
+            scope = "Yerel OCR görselin ilk karesini okur; metin tanıma hatalı olabilir."
         else:
             from openpyxl import load_workbook
             wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
             try:
                 total = 0
-                for ws in wb.worksheets[:20]:
+                for sheet_index, ws in enumerate(wb.worksheets[:20]):
                     if total >= MAX_TEXT:
                         break
                     parts.append(f"[Sayfa: {ws.title}]")
                     sheet_chars = 0
                     for row_index, row in enumerate(ws.iter_rows(min_row=1, max_row=2000, max_col=50, values_only=True), 1):
+                        if sheet_index == 0 and row_index == 1:
+                            chart_headers = list(row[:20])
+                            chart_label = ws.title
+                        elif sheet_index == 0 and row_index <= 501 and any(value is not None for value in row[:20]):
+                            chart_rows.append(list(row[:20]))
                         values = [str(v)[:500] if v is not None else "" for v in row]
                         if any(values):
                             from openpyxl.utils import get_column_letter
@@ -144,7 +200,22 @@ def extract_file(upload, ocr=False):
         text = text[:MAX_TEXT]
         if not text.strip() or (ext == "pdf" and not any((p.split("\n", 1)[-1]).strip() for p in parts)):
             return FileResult(name, scope="Okunabilir metin bulunamadı. Taranmış PDF için OCR gerekebilir. " + scope)
-        return FileResult(name, text, "kısmen okundu" if sampled else "okundu", scope + f" Çıkarılan kesit: {len(text)} karakter.")
+        chart_data = None
+        if chart_headers and chart_rows:
+            headers = []
+            used = set()
+            for index, value in enumerate(chart_headers, 1):
+                base = str(value).strip() if value is not None else ""
+                base = base or f"Sütun {index}"
+                label, suffix = base, 2
+                while label in used:
+                    label, suffix = f"{base} ({suffix})", suffix + 1
+                used.add(label)
+                headers.append(label)
+            chart_rows = [row[:len(headers)] + [None] * max(0, len(headers) - len(row)) for row in chart_rows]
+            chart_data = {"label": chart_label, "columns": headers, "rows": chart_rows}
+        return FileResult(name, text, "kısmen okundu" if sampled else "okundu",
+                          scope + f" Çıkarılan kesit: {len(text)} karakter.", chart_data)
     except Exception as exc:
         # Show only the exception class, never file contents or local paths.
         return FileResult(name, scope=f"Dosya okunamadı ({type(exc).__name__}). Biçim, bozulma, parola koruması veya Excel çalışma kitabı uyumluluğunu kontrol edin.")

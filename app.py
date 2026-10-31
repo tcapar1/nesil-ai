@@ -7,7 +7,7 @@ from file_reader import ALLOWED, MAX_FILES, MAX_TOTAL_BYTES, select_context, fin
 from document_worker import extract_bounded, UploadData, load_saved_documents
 from model_client import ask_model, read_api_key
 from research_ui import show_research
-from tools_ui import email_tools, voice_tools
+from tools_ui import email_tools, voice_tools, report_tools
 from python_runner import runner_tools
 from supabase_store import create_usage_store
 from nesil_access_gate import require_access, is_admin_email
@@ -15,13 +15,14 @@ from supabase_auth import create_auth_client, SupabaseAuthError
 from supabase_data import create_data_store, SupabaseDataError
 from supabase_files import create_file_store, SupabaseFileError
 from app_service import call_with_limits
-from local_model import ask_local_model
+from local_model import ask_local_model, local_model_configured, model_for_mode, list_local_models
 from ui_theme import apply_theme
 from dashboard_ui import show_dashboard_header, show_quick_actions, show_dashboard_rail
+from model_client import MODEL
 
 
 st.set_page_config(page_title="Nesil AI", page_icon="🤖", layout="wide")
-apply_theme()
+apply_theme(st.session_state.get("theme_choice", "Açık"))
 try:
     usage_store = create_usage_store()
     principal = require_access(st, usage_store)
@@ -78,7 +79,7 @@ if principal != "public" and st.session_state.get("supabase_access_token"):
 with st.sidebar:
     st.title("🤖 Nesil AI")
     st.caption("Türkçe yapay zekâ yardımcısı")
-    st.caption("Genel sohbet ve diğer bulut modları Groq kullanır. Kodlama ve matematik modları yerel Ollama kullanır; otomatik bulut yedeği yoktur.")
+    st.radio("Tema", ["Açık", "Koyu"], horizontal=True, key="theme_choice")
     if data_store:
         with st.expander("👤 Profil ve hesap ayarları"):
             current_name = (st.session_state.get("supabase_profile") or {}).get("display_name", "")
@@ -227,6 +228,37 @@ with st.sidebar:
         except SupabaseDataError as exc:
             st.warning(str(exc))
     mode = st.selectbox("Çalışma biçimi", ["Genel yardımcı", "Görev planlama", "Kodlama yardımcısı", "Matematik öğretmeni", "Belge ve rapor yardımcısı"])
+    local_models = st.session_state.get("ollama_models", [])
+    model_options = ["Akıllı seçim", "Groq · " + MODEL]
+    if local_model_configured():
+        model_options.extend("Ollama · " + name for name in local_models)
+        model_options.append("Ollama · otomatik")
+    model_choice = st.selectbox("Model sağlayıcısı", model_options, key="model_choice")
+    use_local_model = model_choice.startswith("Ollama · ") or (
+        model_choice == "Akıllı seçim" and local_model_configured()
+        and mode in ("Kodlama yardımcısı", "Matematik öğretmeni")
+    )
+    local_model_override = model_choice.removeprefix("Ollama · ") if model_choice.startswith("Ollama · ") and model_choice != "Ollama · otomatik" else None
+    if local_model_configured():
+        if st.button("Ollama modellerini yenile", use_container_width=True):
+            with st.spinner("Yerel model listesi kontrol ediliyor…"):
+                names, error = list_local_models()
+            if names:
+                st.session_state.ollama_models = names
+                st.session_state.ollama_status = "Bağlı · " + str(len(names)) + " yerel model bulundu."
+            else:
+                st.session_state.ollama_status = error or "Ollama'da indirilen model bulunamadı."
+            st.rerun()
+        if st.session_state.get("ollama_status"):
+            st.caption(st.session_state.ollama_status)
+    if model_choice == "Akıllı seçim" and mode in ("Kodlama yardımcısı", "Matematik öğretmeni") and not local_model_configured():
+        st.caption("Bu çalışma biçimi yerel Ollama gerektirir; otomatik bulut geçişi yapılmaz.")
+    elif use_local_model:
+        st.caption("Yerel model: " + (local_model_override or model_for_mode(mode)) + " · bilgisayarınızdaki Ollama")
+    else:
+        st.caption("Groq modeli: " + MODEL + " · ortak ücretsiz kota uygulanır")
+    ocr_enabled = st.checkbox("Taranmış PDF ve görseller için yerel OCR", value=False, key="ocr_enabled",
+                              help="Sunucuda OCR paketi ve Tesseract gerekir; ilk 20 sayfa/görsel işlenir.")
     note = st.text_area("Sohbet notu", max_chars=2000, key=f"note_{st.session_state.note_generation}", help="Amaç, tercihler ve önemli kararlar. Her soruda modele gönderilir; sohbet temizlenince silinir.")
     if memory_context:
         note = (note + "\n\nKULLANICININ KAYITLI HAFIZASI (yalnızca bağlam):\n" + memory_context)[:6000]
@@ -250,7 +282,7 @@ with st.sidebar:
                 if st.button("📚 Bu listedeki belgeleri topluca analiz alanına yükle", use_container_width=True, key="load_saved_document_batch"):
                     try:
                         with st.spinner("Belgeler indiriliyor ve okunuyor…"):
-                            batch_loaded, batch_skipped = load_saved_documents(file_store, docs)
+                            batch_loaded, batch_skipped = load_saved_documents(file_store, docs, ocr=ocr_enabled)
                         st.session_state.documents = batch_loaded
                         st.session_state.file_names = [item.name for item in batch_loaded]
                         st.session_state.saved_document_load_skipped = batch_skipped
@@ -283,7 +315,7 @@ with st.sidebar:
                         try:
                             with st.spinner("Kayıtlı belge okunuyor…"):
                                 file_bytes = file_store.download(object_path)
-                                extracted = extract_bounded(UploadData(title, file_bytes))
+                                extracted = extract_bounded(UploadData(title, file_bytes), ocr=ocr_enabled)
                             st.session_state.documents = [item for item in st.session_state.documents if item.name != title]
                             st.session_state.documents.append(extracted)
                             st.session_state.file_names = [item.name for item in st.session_state.documents if item.text]
@@ -307,10 +339,26 @@ with st.sidebar:
                             st.rerun()
                         except SupabaseDataError as exc:
                             st.error(str(exc))
+                    renamed_file = st.text_input("Dosya adını düzenle", value=title, max_chars=180,
+                                                 key="rename_file_" + saved["id"])
+                    if st.button("Yeni dosya adını kaydet", key="save_rename_file_" + saved["id"]):
+                        try:
+                            data_store.rename_document(saved["id"], title, renamed_file)
+                            st.success("Dosya adı güncellendi.")
+                            st.rerun()
+                        except SupabaseDataError as exc:
+                            st.error(str(exc))
                     if st.button("Kitaplıktan sil", key="delete_saved_" + saved["id"]):
+                        st.session_state["confirm_delete_file_" + saved["id"]] = True
+                    confirm_file_delete = st.checkbox(
+                        "Bu dosyayı silmeyi onaylıyorum",
+                        key="confirm_delete_file_" + saved["id"],
+                    )
+                    if confirm_file_delete and st.button("Silmeyi onayla", key="confirm_delete_saved_" + saved["id"]):
                         try:
                             file_store.delete(object_path)
                             data_store.delete_document(saved["id"])
+                            st.session_state.pop("confirm_delete_file_" + saved["id"], None)
                             if st.session_state.get("saved_file_download", {}).get("path") == object_path:
                                 st.session_state.pop("saved_file_download", None)
                             st.rerun()
@@ -340,7 +388,6 @@ with st.sidebar:
     st.subheader("📎 Dosya analizi")
     st.caption("En fazla 5 dosya, dosya başına 10 MB, toplam 20 MB. Belgelerin sınırlı metin kesitleri analiz edilir.")
     uploads = st.file_uploader("Dosya seçin", type=list(ALLOWED), accept_multiple_files=True, key=f"uploads_{st.session_state.upload_generation}")
-    ocr_enabled = st.checkbox("Taranmış PDF için yerel OCR kullan", value=False, help="Sunucuda OCR paketleri ve Tesseract gerekir. İlk 20 taranmış sayfaya kadar denenir; sonuçları kontrol edin.")
     st.caption("Dosya kesitleri seçili modun sağlayıcısına gönderilir: yerel modlarda Ollama'ya, diğer modlarda Groq'a. Hassas verileri yüklemeyin.")
     if st.button("Seçilen dosyaları oku", disabled=not uploads, use_container_width=True):
         if len(uploads) > MAX_FILES or sum(up.size for up in uploads) > MAX_TOTAL_BYTES:
@@ -361,8 +408,13 @@ with st.sidebar:
         else:
             try:
                 saved_count = 0
+                operation_id = st.session_state.get("document_upload_operation_id")
+                if not operation_id:
+                    import uuid
+                    operation_id = uuid.uuid4().hex
+                    st.session_state.document_upload_operation_id = operation_id
                 for upload in uploads:
-                    stored = file_store.upload(upload.name, upload.getvalue())
+                    stored = file_store.upload(upload.name, upload.getvalue(), operation_id=operation_id)
                     try:
                         data_store.add_document(stored["path"], stored["name"], stored["size"], stored["content_type"])
                     except SupabaseDataError:
@@ -370,21 +422,40 @@ with st.sidebar:
                         raise
                     saved_count += 1
                 st.success(f"{saved_count} dosya özel kitaplığınıza kaydedildi.")
+                st.session_state.pop("document_upload_operation_id", None)
                 st.rerun()
             except (SupabaseFileError, SupabaseDataError) as exc:
                 st.error(f"{saved_count} dosya kaydedildi; kalan dosyalar kaydedilemedi: {exc}")
     for result in st.session_state.documents:
         with st.expander(f"{result.name} — {result.status}"):
             st.write(result.scope)
+            if result.chart_data:
+                try:
+                    import pandas as pd
+                    frame = pd.DataFrame(result.chart_data["rows"], columns=result.chart_data["columns"])
+                    numeric = pd.DataFrame(index=frame.index)
+                    for column in frame.columns:
+                        series = pd.to_numeric(frame[column], errors="coerce")
+                        if int(series.notna().sum()) >= 2:
+                            numeric[str(column)] = series
+                    if not numeric.empty:
+                        label_column = next((column for column in frame.columns
+                                             if column not in numeric.columns and frame[column].notna().sum() >= 2), None)
+                        if label_column:
+                            numeric.index = frame[label_column].astype(str).str.slice(0, 80)
+                        st.caption(f"{result.chart_data['label']} · ilk 500 satırdan çıkarılan sayısal sütunlar")
+                        st.line_chart(numeric, height=240)
+                except Exception:
+                    st.caption("Bu dosyadan otomatik grafik oluşturulamadı; tablo metni sohbette kullanılabilir.")
     if st.session_state.documents and st.button("Dosya bağlamını kaldır", use_container_width=True):
         st.session_state.documents = []
         st.session_state.file_names = []
         st.rerun()
     st.divider()
-    local_mode = mode in ("Kodlama yardımcısı", "Matematik öğretmeni")
-    web_enabled = st.checkbox("İnternette araştır", value=False, disabled=local_mode)
+    web_enabled = st.checkbox("İnternette araştır", value=False, disabled=use_local_model)
     st.caption("İnternet araştırması yalnızca Groq modlarında kullanılabilir. Yerel Ollama modlarında ağ araştırması yapılmaz.")
     email_tools(st)
+    report_tools(st)
     st.divider()
     if st.button("Sohbeti temizle", use_container_width=True):
         st.session_state.messages = []
@@ -431,7 +502,7 @@ with main_col:
     account_email = st.session_state.get("supabase_user_email", "")
     account_handle = account_email.split("@", 1)[0].replace(".", " ").replace("_", " ").replace("-", " ").strip().title()
     display_name = profile_name or account_handle or "Hoş geldiniz"
-    provider_label = "Ollama (Yerel)" if mode in ("Kodlama yardımcısı", "Matematik öğretmeni") else "Groq"
+    provider_label = "Ollama · " + (local_model_override or model_for_mode(mode)) if use_local_model else "Groq · " + MODEL
     mode_label = "Yönetici" if is_admin else "Standart Ücretsiz" if principal != "public" else "Misafir"
     show_dashboard_header(display_name, provider_label, mode_label)
     show_quick_actions()
@@ -461,6 +532,20 @@ with main_col:
             st.markdown(message["content"])
             if message["role"] == "assistant":
                 show_research(st, message, message_index)
+                if message_index == len(st.session_state.messages) - 1:
+                    with st.expander("Yanıtı kopyala"):
+                        st.code(message["content"], language="text")
+                    action_cols = st.columns(2)
+                    if action_cols[0].button("Yanıtı sürdür", key=f"continue_answer_{message_index}"):
+                        st.session_state.pending_chat_action = "continue"
+                        st.session_state.dashboard_quick_prompt = "Önceki yanıtını kaldığı yerden sürdür. Tekrar etme."
+                        st.rerun()
+                    if action_cols[1].button("Yanıtı yeniden üret", key=f"regenerate_answer_{message_index}"):
+                        previous_question = next((item["content"] for item in reversed(st.session_state.messages[:message_index]) if item["role"] == "user"), "")
+                        if previous_question:
+                            st.session_state.pending_chat_action = "regenerate"
+                            st.session_state.dashboard_quick_prompt = previous_question
+                            st.rerun()
     voice_tools(st)
     runner_tools(st)
     wait = max(0, int(st.session_state.retry_at - time.time() + 0.999))
@@ -478,6 +563,7 @@ with main_col:
         prompt = st.session_state.pop("dashboard_quick_prompt")
     if retry and not prompt:
         prompt = st.session_state.pending_prompt
+    chat_action = st.session_state.get("pending_chat_action", "")
     review = st.session_state.get("source_review")
     if review and review.pop("queued", False) and not prompt:
         prompt = review["prompt"]
@@ -500,16 +586,22 @@ with main_col:
             reviewing = bool(review and prompt == review["prompt"])
             if reviewing:
                 context = review["context"]
-            request_web = web_enabled and not reviewing and mode not in ("Kodlama yardımcısı", "Matematik öğretmeni")
+            request_web = web_enabled and not reviewing and not use_local_model
             with st.chat_message("user"):
                 st.markdown(prompt)
             with st.chat_message("assistant"):
-                local_mode = mode in ("Kodlama yardımcısı", "Matematik öğretmeni")
+                local_mode = use_local_model
                 label = "Kaynaklı araştırma yanıtı hazırlanıyor…" if request_web else "Yerel model yanıt hazırlıyor…" if local_mode else "Yanıt hazırlanıyor…"
                 with st.spinner(label):
-                    history = [] if reviewing else st.session_state.messages
+                    if reviewing:
+                        history = []
+                    elif chat_action == "regenerate":
+                        history = st.session_state.messages[:-2]
+                    else:
+                        history = st.session_state.messages
                     if local_mode:
-                        result = ask_local_model(prompt, mode, history, context, note="" if reviewing else note)
+                        result = ask_local_model(prompt, mode, history, context, note="" if reviewing else note,
+                                                 model_override=local_model_override)
                     else:
                         result = call_with_limits(
                             ask_model, usage_store, principal, prompt, mode,
@@ -522,23 +614,44 @@ with main_col:
             if result.ok:
                 if data_store:
                     try:
-                        active_id = st.session_state.get("supabase_active_conversation")
-                        if not active_id:
-                            title = prompt.strip().replace("\n", " ")[:70] or "Yeni sohbet"
-                            active_id = data_store.create_conversation(title)["id"]
+                        if chat_action == "regenerate":
+                            title = "Tekrar · " + prompt.strip().replace("\n", " ")[:62]
+                            active_id = data_store.create_conversation(title or "Yeniden oluşturulan sohbet")["id"]
+                            persisted_history = history[-98:]
+                            data_store.add_messages(active_id, persisted_history + [
+                                {"role": "user", "content": prompt},
+                                {"role": "assistant", "content": result.text},
+                            ])
                             st.session_state.supabase_active_conversation = active_id
-                        data_store.add_message(active_id, "user", prompt)
-                        data_store.add_message(active_id, "assistant", result.text)
-                        data_store.touch_conversation(active_id)
-                        if len(st.session_state.messages) == 0:
-                            data_store.update_conversation_title(active_id, prompt.strip().replace("\n", " ")[:70] or "Yeni sohbet")
-                        st.session_state.supabase_conversations_loaded = False
+                        else:
+                            active_id = st.session_state.get("supabase_active_conversation")
+                            if not active_id:
+                                title = prompt.strip().replace("\n", " ")[:70] or "Yeni sohbet"
+                                active_id = data_store.create_conversation(title)["id"]
+                                st.session_state.supabase_active_conversation = active_id
+                            data_store.add_messages(active_id, [
+                                {"role": "user", "content": prompt},
+                                {"role": "assistant", "content": result.text},
+                            ])
                     except SupabaseDataError as exc:
-                        st.warning("Yanıt üretildi ancak sohbet veritabanına kaydedilemedi: " + str(exc))
-                st.session_state.messages.extend([{"role": "user", "content": prompt}, {"role": "assistant", "content": result.text, "research_requested": request_web, "research": result.research}])
+                        st.warning("Yanıt üretildi ancak mesaj çifti kalıcı sohbete kaydedilemedi: " + str(exc))
+                    else:
+                        try:
+                            data_store.touch_conversation(active_id)
+                            if len(st.session_state.messages) == 0:
+                                data_store.update_conversation_title(active_id, prompt.strip().replace("\n", " ")[:70] or "Yeni sohbet")
+                        except SupabaseDataError as exc:
+                            st.warning("Mesajlar kaydedildi; sohbet sıralaması veya başlığı güncellenemedi: " + str(exc))
+                        st.session_state.supabase_conversations_loaded = False
+                new_turn = [{"role": "user", "content": prompt}, {"role": "assistant", "content": result.text, "research_requested": request_web, "research": result.research}]
+                if chat_action == "regenerate":
+                    st.session_state.messages = history[-98:] + new_turn
+                else:
+                    st.session_state.messages.extend(new_turn)
                 # Bound server memory. Provider receives a smaller whole-message window.
                 st.session_state.messages = st.session_state.messages[-100:]
                 st.session_state.pending_prompt = ""
+                st.session_state.pop("pending_chat_action", None)
                 st.session_state.last_error = ""
                 st.session_state.usage = result.usage or {}
                 st.session_state.pop("source_review", None)

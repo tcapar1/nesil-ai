@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from supabase_store import SupabaseStoreError, SupabaseUsageStore, create_usage_store
+from supabase_store import SupabaseStoreError, SupabaseUsageLimit, SupabaseUsageStore, create_usage_store
 
 
 class FakeResponse:
@@ -88,6 +88,40 @@ class SupabaseStoreTests(unittest.TestCase):
                 self.store.login_attempt()
         self.assertNotIn("private-key", str(caught.exception))
         self.assertNotIn("user-data", str(caught.exception))
+
+    def test_expected_quota_rejections_are_usage_limits(self):
+        import io
+        import urllib.error
+
+        cases = (
+            ("NESIL_DAILY_LIMIT", "reserve"),
+            ("NESIL_MINUTE_LIMIT", "reserve"),
+            ("NESIL_PROVIDER_COOLDOWN", "reserve"),
+            ("NESIL_LOGIN_LIMIT", "login_attempt"),
+        )
+        for code, operation_name in cases:
+            with self.subTest(code=code):
+                error = urllib.error.HTTPError(
+                    "https://project.supabase.co/rest/v1/rpc/private",
+                    400, "quota", {}, io.BytesIO(json.dumps({"message": code}).encode()),
+                )
+                with patch("urllib.request.urlopen", side_effect=error):
+                    with self.assertRaises(SupabaseUsageLimit):
+                        operation = getattr(self.store, operation_name)
+                        operation("user-hash", 100) if operation_name == "reserve" else operation()
+
+    def test_invalid_reservation_is_not_misreported_as_quota_exhaustion(self):
+        import io
+        import urllib.error
+
+        error = urllib.error.HTTPError(
+            "https://project.supabase.co/rest/v1/rpc/private",
+            400, "invalid", {}, io.BytesIO(b'{"message":"NESIL_INVALID_RESERVATION"}'),
+        )
+        with patch("urllib.request.urlopen", side_effect=error):
+            with self.assertRaises(SupabaseStoreError) as caught:
+                self.store.reserve("user-hash", 100)
+        self.assertNotIsInstance(caught.exception, SupabaseUsageLimit)
 
 
 if __name__ == "__main__":

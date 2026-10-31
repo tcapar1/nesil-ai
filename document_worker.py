@@ -65,7 +65,7 @@ def extract_bounded(upload, ocr=False, timeout=35):
                 process.close()
 
 
-def load_saved_documents(file_store, saved_rows, max_files=MAX_FILES, max_total_bytes=MAX_TOTAL_BYTES):
+def load_saved_documents(file_store, saved_rows, max_files=MAX_FILES, max_total_bytes=MAX_TOTAL_BYTES, ocr=False):
     """Load a bounded batch from a user's private library; never exceed session limits."""
     loaded, skipped, total_bytes = [], [], 0
     file_limit = max(0, min(int(max_files), MAX_FILES))
@@ -102,7 +102,7 @@ def load_saved_documents(file_store, saved_rows, max_files=MAX_FILES, max_total_
             if total_bytes + len(raw) > byte_limit:
                 skipped.append((name, f"Belirlenen toplam yükleme sınırı ({byte_limit} bayt) aşılacağı için atlandı."))
                 continue
-            result = extract_bounded(UploadData(name, raw))
+            result = extract_bounded(UploadData(name, raw), ocr=ocr)
             if result.text:
                 loaded.append(result)
                 total_bytes += len(raw)

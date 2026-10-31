@@ -209,6 +209,15 @@ class ImprovementsTests(unittest.TestCase):
         self.assertFalse(result.ok)
         provider.assert_not_called()
 
+    def test_supabase_quota_failure_keeps_specific_message_and_skips_provider(self):
+        from supabase_store import SupabaseUsageLimit
+        store, provider = Mock(), Mock()
+        store.reserve.side_effect = SupabaseUsageLimit("Günlük kullanım sınırına ulaşıldı.")
+        result = call_with_limits(provider, store, "a", "soru", "Genel", [], "", False, api_key="fake", note="")
+        self.assertFalse(result.ok)
+        self.assertEqual(result.text, "Günlük kullanım sınırına ulaşıldı.")
+        provider.assert_not_called()
+
     def test_login_throttle_survives_session_reset(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "usage.db"

@@ -3,10 +3,15 @@ import json
 import os
 import urllib.error
 import urllib.request
+from usage_limits import UsageLimit
 
 
 class SupabaseStoreError(ValueError):
     pass
+
+
+class SupabaseUsageLimit(UsageLimit):
+    """A recognized quota rejection returned by an atomic Supabase RPC."""
 
 
 class SupabaseUsageStore:
@@ -48,7 +53,13 @@ class SupabaseUsageStore:
                 "NESIL_INVALID_RESERVATION": "Kullanım kotası isteği geçersiz.",
             }
             if message in messages:
-                raise SupabaseStoreError(messages[message]) from None
+                error_type = SupabaseUsageLimit if message in {
+                    "NESIL_PROVIDER_COOLDOWN",
+                    "NESIL_MINUTE_LIMIT",
+                    "NESIL_DAILY_LIMIT",
+                    "NESIL_LOGIN_LIMIT",
+                } else SupabaseStoreError
+                raise error_type(messages[message]) from None
             raise SupabaseStoreError("Supabase kullanım kaydı başarısız. Ayarlar ve SQL migration kontrol edilmeli.") from None
         except (urllib.error.URLError, TimeoutError, ValueError):
             raise SupabaseStoreError("Supabase hizmetine erişilemiyor. Model isteği gönderilmedi.") from None

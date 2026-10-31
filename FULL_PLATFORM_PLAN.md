@@ -1,6 +1,6 @@
 # Nesil AI — Tam Kapsamlı Platform Yol Haritası
 
-Bu plan `feature/full-platform-20261031` dalında yürütülür. `main` ve Streamlit canlı dağıtımı, açıkça onaylanmış yayın adımına kadar değiştirilmez.
+Bu çalışma `codex/full-platform-complete-20261031` geliştirme dalındadır; başlangıç noktası 2026-10-31'de getirilen `origin/main` commit'i `ca07ea3`'tür. Yedek dal `backup/pre-audit-20261031` korunmuştur. `main`, canlı Streamlit uygulaması ve üretim Supabase verileri değiştirilmez. Birleştirme, migration uygulama ve dağıtım için son rapordan sonra ayrıca açık onay gerekir.
 
 ## Ürün hedefi
 
@@ -18,14 +18,12 @@ Türkçe öncelikli; web ve mobil uyumlu; kullanıcı hesabı, özel veri alanı
 
 ## Aşama 0 — Koruma ve mevcut durum denetimi
 
-- [x] Main commit'inden yedek dal oluşturuldu: `backup/pre-full-platform-20261031`
-- [x] Aynı commit'ten geliştirme dalı oluşturuldu: `feature/full-platform-20261031`
-- [x] Main ile geliştirme dalı karşılaştırıldı; yedek dal ve taslak PR doğrulandı.
-- [x] Supabase tabloları, RLS sahiplik politikaları, SECURITY DEFINER RPC yetkileri ve auth kullanıcı oluşturma tetikleyicisi salt okunur olarak denetlendi.
-- [x] CI testleri Windows ve Ubuntu üzerinde geçti; testler mock/sentetik veri kullandı.
-- [ ] Streamlit Cloud Secrets değerleri kullanıcı arayüzünde doğrulanmalı; gizli değerler istenmemeli veya loglanmamalı.
-- [x] Canlı Supabase'de beklenen tablolar mevcut; migration geçmişi boş olduğundan başlangıç migration'ları körlemesine yeniden uygulanmayacak. Şema/migration geçmişi uzlaştırması ayrı kontrollü iş olarak kaydedildi.
-- [ ] Supabase Auth leaked-password protection ayarı etkinleştirilmeli; yönetim arayüzünde doğrulanmadan tamamlandı sayılmayacak.
+- [x] Uzak `main` yenilendi ve başlangıç commit'i `ca07ea3` olarak doğrulandı.
+- [x] Önceden var olan `backup/pre-audit-20261031` korundu; geliştirme dalı ayrı açıldı.
+- [x] Yerel Supabase istemci/RLS/migration kodu salt okunur incelendi; migration çalıştırılmadı.
+- [x] Windows'ta proje içi `.venv` ile testler mock/sentetik veri kullanarak çalıştırıldı.
+- [ ] Bu geliştirme dalı için GitHub Actions Windows/Linux sonucu alınmalı.
+- [ ] Canlı Supabase şeması, Auth ayarları ve Cloud Secrets değerleri bu turda doğrulanmadı; gizli değer istenmemeli veya rapora yazılmamalı.
 
 ## Aşama 1 — Hesap ve kullanıcı alanı
 
