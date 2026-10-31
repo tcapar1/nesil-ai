@@ -115,6 +115,14 @@ class SupabaseDataStore:
         q = urllib.parse.urlencode({"id": "eq." + conversation_id})
         self._request("DELETE", "nesil_conversations", q, prefer="return=minimal")
 
+    def touch_conversation(self, conversation_id):
+        """Move a conversation to the top of the user's recent history."""
+        if not isinstance(conversation_id, str) or not conversation_id or len(conversation_id) > 64:
+            raise SupabaseDataError("Sohbet kimliği geçersiz.")
+        q = urllib.parse.urlencode({"id": "eq." + conversation_id})
+        updated_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        self._request("PATCH", "nesil_conversations", q, {"updated_at": updated_at}, "return=minimal")
+
     def update_conversation_title(self, conversation_id, title):
         q = urllib.parse.urlencode({"id": "eq." + str(conversation_id)})
         self._request("PATCH", "nesil_conversations", q,
