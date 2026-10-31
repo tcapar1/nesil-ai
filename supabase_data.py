@@ -124,9 +124,13 @@ class SupabaseDataStore:
         self._request("PATCH", "nesil_conversations", q, {"updated_at": updated_at}, "return=minimal")
 
     def update_conversation_title(self, conversation_id, title):
-        q = urllib.parse.urlencode({"id": "eq." + str(conversation_id)})
+        if not isinstance(conversation_id, str) or not conversation_id or len(conversation_id) > 64:
+            raise SupabaseDataError("Sohbet kimliği geçersiz.")
+        if not isinstance(title, str) or len(title.strip()) > 120:
+            raise SupabaseDataError("Sohbet başlığı en fazla 120 karakter olabilir.")
+        q = urllib.parse.urlencode({"id": "eq." + conversation_id})
         self._request("PATCH", "nesil_conversations", q,
-                      {"title": (title or "Yeni sohbet").strip()[:120] or "Yeni sohbet",
+                      {"title": title.strip() or "Yeni sohbet",
                        "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}, "return=minimal")
 
     def list_memory(self, limit=50):
