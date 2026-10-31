@@ -137,6 +137,19 @@ class SupabaseDataStore:
             raise SupabaseDataError("Hafıza kaydedilemedi.")
         return rows[0]
 
+    def update_memory(self, memory_id, memory_text):
+        """Update one user's saved memory; RLS remains the ownership boundary."""
+        if not isinstance(memory_id, str) or not memory_id or len(memory_id) > 64:
+            raise SupabaseDataError("Hafıza kaydı kimliği geçersiz.")
+        if not isinstance(memory_text, str) or not memory_text.strip() or len(memory_text) > 4000:
+            raise SupabaseDataError("Hafıza metni 1-4000 karakter olmalı.")
+        q = urllib.parse.urlencode({"id": "eq." + memory_id})
+        payload = {
+            "memory_text": memory_text.strip(),
+            "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        }
+        self._request("PATCH", "nesil_memory_items", q, payload, "return=minimal")
+
     def delete_memory(self, memory_id):
         q = urllib.parse.urlencode({"id": "eq." + str(memory_id)})
         self._request("DELETE", "nesil_memory_items", q, prefer="return=minimal")
