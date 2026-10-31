@@ -49,7 +49,7 @@ if principal != "public" and st.session_state.get("supabase_access_token"):
         memories = data_store.list_memory()
         memory_context = "\n".join("- " + item["memory_text"] for item in memories)
         file_store = create_file_store(st.secrets, st.session_state.supabase_access_token, principal)
-    except SupabaseDataError as exc:
+    except (SupabaseDataError, SupabaseFileError) as exc:
         if "süresi dolmuş" in str(exc).lower() and st.session_state.get("supabase_refresh_token"):
             try:
                 refreshed = auth_client.refresh(st.session_state.supabase_refresh_token)
