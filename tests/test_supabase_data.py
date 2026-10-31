@@ -29,6 +29,29 @@ class SupabaseDataTests(unittest.TestCase):
         )
         self.assertEqual(fallback.anon_key, "legacy-anon-key")
 
+    def test_get_profile_is_scoped_to_authenticated_user(self):
+        body = json.dumps([{"user_id": "user-1", "display_name": "Test"}]).encode()
+        with patch("urllib.request.urlopen", return_value=FakeResponse(body)) as opener:
+            row = self.store.get_profile()
+        req = opener.call_args.args[0]
+        self.assertIn("user_id=eq.user-1", req.full_url)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+        self.assertEqual(row["display_name"], "Test")
+
+    def test_update_profile_sends_only_display_name_for_current_user(self):
+        body = json.dumps([{"user_id": "user-1", "display_name": "Yeni Ad"}]).encode()
+        with patch("urllib.request.urlopen", return_value=FakeResponse(body)) as opener:
+            row = self.store.update_profile("Yeni Ad")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "PATCH")
+        self.assertIn("user_id=eq.user-1", req.full_url)
+        self.assertEqual(json.loads(req.data), {"display_name": "Yeni Ad"})
+        self.assertEqual(row["display_name"], "Yeni Ad")
+
+    def test_update_profile_rejects_overlong_name(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_profile("x" * 81)
+
     def test_list_conversations_uses_user_jwt_not_service_role(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
             self.store.list_conversations()
