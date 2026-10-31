@@ -40,7 +40,7 @@ class SavedDocumentBatchTests(unittest.TestCase):
         loaded, skipped = load_saved_documents(store, rows, max_files=2, max_total_bytes=20)
         self.assertEqual([item.name for item in loaded], ["a.txt", "b.txt"])
         self.assertEqual(len(skipped), 1)
-        self.assertIn("2 belge", skipped[0][1])
+        self.assertIn("En fazla 2 belge", skipped[0][1])
 
     @patch("document_worker.extract_bounded")
     def test_batch_is_limited_by_total_downloaded_bytes(self, extract):
@@ -50,8 +50,8 @@ class SavedDocumentBatchTests(unittest.TestCase):
         loaded, skipped = load_saved_documents(store, rows, max_files=3, max_total_bytes=5)
         self.assertEqual([item.name for item in loaded], ["a.txt"])
         self.assertEqual(len(skipped), 2)
-        self.assertIn("Toplam", skipped[0][1])
-        self.assertIn("Toplam", skipped[1][1])
+        self.assertIn("5 bayt", skipped[0][1])
+        self.assertIn("5 bayt", skipped[1][1])
 
     @patch("document_worker.extract_bounded")
     def test_duplicate_names_are_not_loaded_twice(self, extract):
