@@ -36,13 +36,30 @@ class SupabaseAuthClient:
                 raise SupabaseAuthError("Supabase kimlik doğrulama yanıtı geçersiz.")
             return result
         except urllib.error.HTTPError as exc:
-            # Do not expose provider response bodies: they can contain user details.
+            # Surface only Supabase's machine-readable error code, never raw response details.
             status = exc.code
-            if status in (400, 401, 422):
-                raise SupabaseAuthError("E-posta/şifre bilgileri geçersiz veya e-posta doğrulaması gerekiyor.") from None
+            try:
+                body = json.loads(exc.read(8192).decode("utf-8"))
+            except Exception:
+                body = {}
+            code = str(body.get("code") or body.get("error_code") or "").lower()
+            safe_messages = {
+                "invalid_credentials": "E-posta veya şifre yanlış. Supabase'de bu kullanıcı için şifreyi sıfırlayın.",
+                "email_not_confirmed": "E-posta doğrulanmamış. Supabase Users ekranındaki Confirmed alanını kontrol edin.",
+                "user_not_found": "Bu e-posta ile kullanıcı bulunamadı.",
+                "user_banned": "Bu kullanıcı hesabı engellenmiş.",
+                "signup_disabled": "Supabase Email kayıtları kapalı.",
+                "over_email_send_rate_limit": "E-posta gönderim sınırına ulaşıldı. Bir süre bekleyin.",
+                "over_request_rate_limit": "Çok fazla istek gönderildi. Bir süre bekleyin.",
+                "weak_password": "Şifre güvenlik koşullarını karşılamıyor.",
+            }
+            if code in safe_messages:
+                raise SupabaseAuthError(f"Supabase ({code}): {safe_messages[code]}") from None
             if status == 429:
-                raise SupabaseAuthError("Çok fazla giriş denemesi. Bir süre sonra yeniden deneyin.") from None
-            raise SupabaseAuthError("Supabase kimlik hizmeti isteği tamamlayamadı.") from None
+                raise SupabaseAuthError("Supabase (rate_limit): Çok fazla deneme. Bir süre sonra yeniden deneyin.") from None
+            if status in (400, 401, 422):
+                raise SupabaseAuthError(f"Supabase (HTTP {status}, {code or 'auth_error'}): Giriş reddedildi. Supabase Auth Logs bölümünü kontrol edin.") from None
+            raise SupabaseAuthError(f"Supabase (HTTP {status}): Kimlik hizmeti isteği tamamlayamadı.") from None
         except (urllib.error.URLError, TimeoutError):
             raise SupabaseAuthError("Supabase kimlik hizmetine erişilemiyor.") from None
         except (UnicodeDecodeError, json.JSONDecodeError):
