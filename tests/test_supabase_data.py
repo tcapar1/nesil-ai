@@ -86,6 +86,36 @@ class SupabaseDataTests(unittest.TestCase):
         with self.assertRaises(SupabaseDataError):
             self.store.touch_conversation("")
 
+    def test_list_conversations_excludes_archived_by_default_and_sorts_pins_first(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
+            self.store.list_conversations()
+        req = opener.call_args.args[0]
+        self.assertIn("is_archived=eq.false", req.full_url)
+        self.assertIn("is_pinned.desc", req.full_url)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_list_conversations_can_include_archived(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"[]")) as opener:
+            self.store.list_conversations(include_archived=True)
+        self.assertNotIn("is_archived=eq.false", opener.call_args.args[0].full_url)
+
+    def test_pin_and_archive_update_only_allowed_flags(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.pin_conversation("conversation-1", True)
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "PATCH")
+        self.assertEqual(json.loads(req.data)["is_pinned"], True)
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.archive_conversation("conversation-1", True)
+        self.assertEqual(json.loads(opener.call_args.args[0].data)["is_archived"], True)
+
+    def test_conversation_flag_rejects_invalid_flag_and_id(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.set_conversation_flag("conversation-1", "user_id", True)
+        with self.assertRaises(SupabaseDataError):
+            self.store.pin_conversation("", True)
+
     def test_update_conversation_title_is_validated_and_user_scoped(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
             self.store.update_conversation_title("conversation-1", "Yeni başlık")
