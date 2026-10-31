@@ -20,10 +20,12 @@ Türkçe öncelikli; web ve mobil uyumlu; kullanıcı hesabı, özel veri alanı
 
 - [x] Main commit'inden yedek dal oluşturuldu: `backup/pre-full-platform-20261031`
 - [x] Aynı commit'ten geliştirme dalı oluşturuldu: `feature/full-platform-20261031`
-- [ ] Dal ve main karşılaştırmasını doğrula; çalışma ağacının değişmediğini kontrol et.
-- [ ] Kimlik doğrulama, RLS, yönetici rolleri, kota ve gizli anahtar akışlarını uçtan uca denetle.
-- [ ] Mevcut testleri ve CI sonuçlarını temel ölçüm olarak kaydet.
-- [ ] Streamlit Cloud Secrets ve gerçek Supabase ayarlarını kullanıcı ekran görüntüsü/konfigürasyon incelemesiyle doğrula; gizli değerleri isteme veya loglama.
+- [x] Main ile geliştirme dalı karşılaştırıldı; yedek dal ve taslak PR doğrulandı.
+- [x] Supabase tabloları, RLS sahiplik politikaları, SECURITY DEFINER RPC yetkileri ve auth kullanıcı oluşturma tetikleyicisi salt okunur olarak denetlendi.
+- [x] CI testleri Windows ve Ubuntu üzerinde geçti; testler mock/sentetik veri kullandı.
+- [ ] Streamlit Cloud Secrets değerleri kullanıcı arayüzünde doğrulanmalı; gizli değerler istenmemeli veya loglanmamalı.
+- [x] Canlı Supabase'de beklenen tablolar mevcut; migration geçmişi boş olduğundan başlangıç migration'ları körlemesine yeniden uygulanmayacak. Şema/migration geçmişi uzlaştırması ayrı kontrollü iş olarak kaydedildi.
+- [ ] Supabase Auth leaked-password protection ayarı etkinleştirilmeli; yönetim arayüzünde doğrulanmadan tamamlandı sayılmayacak.
 
 ## Aşama 1 — Hesap ve kullanıcı alanı
 
