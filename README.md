@@ -68,7 +68,9 @@ Kalıcı hafıza kullanıcı tarafından eklenebilir, düzenlenebilir ve silineb
 Yan paneldeki 2.000 karakterlik **Sohbet notu** amaç, tercihler ve önemli
 kararlar için kullanıcı tarafından yazılır. Ek bir özet/model isteği yapılmaz.
 Not her soruda kullanıcı bağlamı olarak gönderilir; sistem talimatı değildir.
-Sohbet temizlenince not da silinir. Oturumlar arasında kalıcı hafıza yoktur.
+Sohbet temizlenince not da silinir. Supabase Auth ile giriş yapılmışsa ayrıca
+kullanıcının açıkça kaydettiği kalıcı hafıza kayıtları oturumlar arasında
+korunur; kullanıcı bunları düzenleyebilir veya silebilir.
 
 Geçmişteki soru/cevap turları bölünmeden seçilir. Önce yakın konuşma için
 yer ayrılır, ardından soruyla sözcük eşleşmesi olan eski turlar seçilir.
@@ -327,32 +329,30 @@ atomik kota ayırır ve sonuçları uzlaştırır. Supabase ayarı eksikse kota 
 başarısız olur ve model çağrısı yapılmaz. Yerel geliştirmede
 `NESIL_STORAGE_BACKEND=sqlite` kullanılabilir.
 
-Migration ayrıca kullanıcı profili, konuşma, mesaj ve kullanıcıya ait hafıza
-tablolarını RLS açık şekilde hazırlar. Henüz sohbet/hafıza tablolarına yazma
-ve Supabase Auth arayüzü bağlanmış değildir; bu tablolar sonraki aşama için
-şemadır. İstemci rolleri için hiçbir okuma/yazma politikası açılmaz. Gerçek
-kullanıcı kimliği, oturum ve kullanıcı onaylı hafıza akışı bağlanmadan bu
-tablolar kullanılmamalıdır. Supabase Auth entegrasyonu ve veri silme
-akışları ayrı test edilmeden kalıcı sohbet etkinleştirilmez.
+Migration dosyaları yeni/boş bir Supabase projesi için başlangıç şemasıdır.
+Mevcut canlı projede tablolar zaten bulunduğu ve migration geçmişi boş olduğu
+kontrol edildi; bu nedenle migration dosyaları canlı projeye körlemesine yeniden
+uygulanmamalıdır. Önce mevcut şema ile dosyalar karşılaştırılmalı, ardından
+migration geçmişi kontrollü biçimde uzlaştırılmalıdır.
 
+### Supabase Auth ve kalıcı kullanıcı verisi
 
-### Supabase Auth (geliştirme aşaması)
+E-posta/şifre girişini etkinleştirmek için Streamlit Secrets içinde
+`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (eski projeler için
+`SUPABASE_ANON_KEY`) ve `NESIL_AUTH_BACKEND=supabase` ayarlarını kullanın.
+Supabase Dashboard > Authentication > Providers > Email bölümünden e-posta
+sağlayıcısını ve doğrulama seçeneklerini yönetin. Şifre sıfırlama bağlantısının
+redirect URL'si ayrıca Site URL / Redirect URLs listesinde tanımlanmalıdır.
 
-E-posta/şifre girişini etkinleştirmek için Streamlit Secrets içine ayrıca
-`SUPABASE_ANON_KEY` (veya `SUPABASE_PUBLISHABLE_KEY`) ekleyin.
-Ardından `NESIL_AUTH_BACKEND=supabase` ayarını kullanın. Supabase Dashboard
-üzerinde Authentication > Providers > Email ayarları ve e-posta doğrulama
-seçenekleri yönetilmelidir. Public/anon anahtar kullanıcı istemcilerinde
-kullanılmak üzere tasarlanmıştır; service-role anahtarı yalnızca sunucuda
-kalmalıdır.
+Geliştirme dalında profil okuma/güncelleme, kalıcı sohbet oluşturma/listeleme,
+mesajları kaydetme/yükleme, sohbet silme ve kullanıcı kontrollü hafıza ekleme,
+düzenleme ve silme akışları uygulanmıştır. Kullanıcı verisi çağrıları oturumun
+JWT'siyle yapılır; erişim RLS sahiplik politikalarıyla sınırlandırılır.
+Service-role anahtarı bu istemci akışında kullanılmaz. Bu özellikler CI'da
+mock testlerle doğrulanmıştır; gerçek Supabase Auth e-posta teslimi ve iki ayrı
+kullanıcı arasındaki uçtan uca izolasyon staging ortamında ayrıca denenmelidir.
 
-Yeni `202610310002_auth_rls_policies.sql` migration dosyası, ilk şema
-migration'ından sonra SQL Editor'de ayrıca uygulanmalıdır. Bu migration
-profiller, sohbetler, mesajlar ve hafıza kayıtları için kullanıcı sahipliği
-RLS politikalarını hazırlar. **Bu aşamada sohbet ve hafıza kayıtlarının
-PostgreSQL'e kaydedilmesi henüz uygulamaya bağlanmamıştır.** Giriş ekranı ve
-çıkış akışı eklenmiştir; kalıcı sohbet CRUD, token yenileme ve kullanıcı
-kontrollü hafıza akışı tamamlanıp test edilmeden bu özellikler kullanılabilir
-olarak kabul edilmemelidir. Geliştirme dalı varsayılan olarak eski erişim
-kapısını korur; Supabase Auth ancak `NESIL_AUTH_BACKEND=supabase`
-olarak açıkça seçilirse etkinleşir.
+Canlı Supabase projesinin tabloları ve politikaları salt okunur denetlendi.
+Migration geçmişi boş olduğu için şema/migration uzlaştırması tamamlanmış
+sayılmaz. Supabase Auth leaked-password protection ayarı da yayın öncesi
+etkinleştirilmeli ve doğrulanmalıdır.
