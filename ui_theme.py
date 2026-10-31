@@ -9,9 +9,9 @@ def apply_theme():
         :root{--navy:#071b58;--blue:#2468f5;--blue2:#438cff;--muted:#7184aa;--line:#e2eafa;--panel:#fff}
         html,body,[class*="css"]{font-family:Inter,"Segoe UI",Arial,sans-serif}
         .stApp{background:linear-gradient(130deg,#f8faff 0%,#f2f6ff 54%,#edf3ff 100%);color:var(--navy)}
-        [data-testid="stHeader"]{background:rgba(248,250,255,.97);height:3.75rem;z-index:1000}
-        [data-testid="stMain"] .block-container{max-width:1800px;padding:4.5rem clamp(1rem,1.8vw,2rem) 2rem}
-        [data-testid="stSidebar"]{background:linear-gradient(180deg,#f8faff,#edf3ff);border-right:1px solid #dfe8f8;min-width:270px!important}
+        [data-testid="stHeader"]{background:rgba(248,250,255,.97);height:3.75rem;z-index:1000;box-shadow:0 1px 0 #e6edf8}
+        [data-testid="stMain"] .block-container{max-width:1800px;padding:1.25rem clamp(1rem,1.8vw,2rem) 2rem}
+        [data-testid="stSidebar"]{background:linear-gradient(180deg,#f8faff,#edf3ff);border-right:1px solid #dfe8f8;min-width:245px!important}
         [data-testid="stSidebar"]>div:first-child{padding:1rem .9rem}
         [data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.5rem}
         [data-testid="stSidebar"] h1{font-size:1.35rem!important;font-weight:800;color:#071b58!important}
@@ -19,7 +19,7 @@ def apply_theme():
         [data-testid="stSidebar"] .stButton>button{justify-content:flex-start;text-align:left;background:#ffffffb8;border:1px solid #dce7fa}
         h1,h2,h3{color:var(--navy)!important;letter-spacing:-.035em}
         p,label,.stCaption{color:var(--muted)}
-        .nd-topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:0 0 1rem;padding:.25rem 0 .9rem;border-bottom:1px solid #e2eafa;min-height:78px;position:relative;z-index:1}
+        .nd-viewport-spacer{height:3.4rem;flex:0 0 3.4rem}.nd-topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:.25rem 0 1rem;padding:1rem .25rem 1rem;border:1px solid #e3ebf8;border-radius:18px;background:#ffffffd9;min-height:92px;position:relative;z-index:2;box-shadow:0 6px 18px #1e3d7808}
         .nd-brand{display:flex;align-items:center;gap:.7rem;min-width:250px}
         .nd-logo{width:54px;height:54px;display:grid;place-items:center;border-radius:17px;background:linear-gradient(145deg,#dceaff,#fff);border:1px solid #d5e4ff;font-size:2rem;box-shadow:0 8px 20px #2768ee18}
         .nd-brand strong{display:block;font-size:1.55rem;font-weight:850;color:#081b58;line-height:1.1}
@@ -72,7 +72,7 @@ def apply_theme():
         [data-testid="stMain"] [data-testid="stVerticalBlock"]>div:has(>.nd-rail-heading){padding:.3rem 0}
                 @media(max-width:1200px){.nd-models{gap:.2rem}.nd-model{padding:.45rem}.nd-model small{display:none}.nd-brand{min-width:180px}}
         @media(max-width:900px){.nd-topbar{flex-wrap:wrap}.nd-models{order:3;width:100%;justify-content:space-between}.nd-hero-copy{max-width:75%}.nd-robot-scene{opacity:.65}}
-        @media(max-width:700px){[data-testid="stMain"] .block-container{padding:4.25rem .65rem 1.2rem}.nd-brand{min-width:0}.nd-brand strong{font-size:1.25rem}.nd-account{margin-left:auto;min-width:0}.nd-account small{display:none}.nd-models{overflow-x:auto}.nd-model{flex:1;justify-content:center}.nd-model strong{font-size:.7rem}.nd-hero{min-height:205px;padding:1.1rem}.nd-hero-copy{max-width:100%}.nd-hero p{font-size:.86rem}.nd-robot-scene{opacity:.15;right:-8%;width:55%}.nd-feature{min-height:90px;padding:.5rem;gap:.4rem}.nd-feature-icon{width:32px;height:32px;flex-basis:32px;font-size:1rem}.nd-feature strong{font-size:.68rem}.nd-feature small{font-size:.58rem}}
+        @media(max-width:700px){[data-testid="stMain"] .block-container{padding:.5rem .65rem 1.2rem}.nd-viewport-spacer{height:2.6rem;flex-basis:2.6rem}.nd-brand{min-width:0}.nd-brand strong{font-size:1.25rem}.nd-account{margin-left:auto;min-width:0}.nd-account small{display:none}.nd-models{overflow-x:auto}.nd-model{flex:1;justify-content:center}.nd-model strong{font-size:.7rem}.nd-hero{min-height:205px;padding:1.1rem}.nd-hero-copy{max-width:100%}.nd-hero p{font-size:.86rem}.nd-robot-scene{opacity:.15;right:-8%;width:55%}.nd-feature{min-height:90px;padding:.5rem;gap:.4rem}.nd-feature-icon{width:32px;height:32px;flex-basis:32px;font-size:1rem}.nd-feature strong{font-size:.68rem}.nd-feature small{font-size:.58rem}}
         @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
         </style>
         """, unsafe_allow_html=True
