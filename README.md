@@ -369,6 +369,16 @@ sorguyla doğrulandı; uygulamadan önce migration yedeği ve staging doğrulama
 gereklidir. Dosyalar yükleme sırasında ayrıca analiz edilmez; kullanıcı dosyayı
 seçerek mevcut belge çıkarma akışına göndermelidir.
 
+### Sohbet organizasyonu
+
+Sohbet geçmişi başlığa göre aranabilir; sohbet başlığı değiştirilebilir,
+sohbet sabitlenebilir veya arşivlenebilir. Arşivlenmiş sohbetler ayrı görünümde
+açılır. Yeni kurulum şeması `202610310001_initial_schema.sql` içinde
+`is_pinned` ve `is_archived` alanlarını içerir. Mevcut kurulumlar için
+`202610310004_conversation_organization.sql` geriye uyumlu, veri silmeyen
+migration dosyasını kullanır. **Bu migration canlı Supabase'e henüz
+uygulanmadı.** Önce staging ortamında doğrulanmalıdır.
+
 Canlı Supabase projesinin tabloları ve politikaları salt okunur denetlendi.
 Migration geçmişi boş olduğu için şema/migration uzlaştırması tamamlanmış
 sayılmaz. Supabase Auth leaked-password protection ayarı da yayın öncesi
