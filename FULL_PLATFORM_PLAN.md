@@ -71,12 +71,13 @@ Kabul: Sağlayıcı hatası kullanıcı mesajını kaybettirmez; kullanıcı ona
 - [x] Her kullanıcı için UUID klasörü ve Storage RLS sahiplik politikaları.
 - [x] Özel bucket migration dosyası eklendi; mevcut canlı projede bucket olmadığı salt okunur kontrol edildi.
 - [x] Uygulamada özel kitaplık görünümü, indirme ve silme kontrolleri eklendi.
+- [x] Kitaplıktaki kayıtlı dosyayı doğrudan belge analiz alanına alma eklendi.
 - [x] Dosya başına 10 MB, en fazla 5 dosya ve toplam 20 MB sınırı.
 - [x] Storage istemcisi için mock testler eklendi.
 - [ ] Storage migration'ını önce ayrı staging ortamında uygulayıp RLS ve dosya yaşam döngüsünü test et.
 - [ ] Canlı projede migration ancak yedek, staging doğrulaması ve ayrı yayın onayı sonrası uygulanabilir.
 - [ ] Belge meta verisi, etiket/klasör ve kullanıcıya özel arama.
-- [ ] Dosya kitaplığından seçilen dosyayı doğrudan belge çıkarma/sohbet akışına yükleme.
+- [x] Dosya kitaplığından seçilen dosyayı doğrudan belge çıkarma/sohbet akışına yükleme.
 - [ ] OCR, büyük dosya ve belge kaynak konumu testleri.
 
 - PDF, DOCX, XLSX, CSV, TXT, Markdown, görsel ve desteklenen sunum dosyaları.
