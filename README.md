@@ -47,13 +47,21 @@ Görüntüler OCR hizmetine yüklenmez. Eksik kurulum açıkça bildirilir;
 OCR kullanılmadan normal metinli PDF'ler okunmaya devam eder. OCR gerçek
 motor kurulumu ve tarama kalitesiyle ayrıca değerlendirilmelidir.
 
-Uygulama konuşmaları kalıcı veritabanına yazmaz; oturum belleğinde en fazla
-100 mesaj tutar. Genel sohbet, görev planlama ve belge modlarında soru, sınırlı sohbet geçmişi ve seçilen dosya
-kesitleri Groq'a aktarılır. Kodlama ve matematik modlarında bu içerik, uygulama aynı bilgisayarda
-çalışıyorsa yerel Ollama'ya gönderilir. Web araştırması ek hizmetlere veri aktarımı
-içerebilir. Sağlayıcıların saklama politikaları ayrıca geçerlidir.
-Dosya bağlamını kaldırmak eski sohbet mesajlarında bulunan alıntıları silmez.
-Tüm oturum içeriğini temizleme yüklenen dosyaları ve sohbeti kaldırır.
+Supabase kimlik doğrulaması etkinleştirildiğinde kullanıcı hesapları, profil,
+sohbet başlıkları, mesajlar ve kullanıcı tarafından kaydedilen hafıza kayıtları
+Supabase'de kalıcı tutulur. İstekler kullanıcının JWT'siyle yapılır; satır düzeyi
+güvenlik (RLS) kullanıcı kayıtlarını ayırır. Çıkış, sunucu tarafındaki oturum
+bilgilerini temizler. Supabase ayarları yoksa veya NESIL_AUTH_BACKEND=legacy
+seçilmişse eski kurum erişim kodu akışı kullanılabilir.
+
+Genel sohbet, görev planlama ve belge modlarında soru, sınırlı sohbet geçmişi ve
+seçilen dosya kesitleri Groq'a aktarılır. Kodlama ve matematik modlarında bu içerik,
+uygulama aynı bilgisayarda çalışıyorsa yerel Ollama'ya gönderilir. Web araştırması
+ek hizmetlere veri aktarımı içerebilir. Sağlayıcıların saklama politikaları ayrıca
+geçerlidir. Dosya bağlamını kaldırmak daha önce kaydedilmiş sohbet mesajlarını
+silmez. Sohbeti temizlemek yalnızca mevcut ekrandaki bağlamı sıfırlar; kalıcı
+sohbeti silmek için kayıtlı sohbetler bölümündeki silme onayı kullanılmalıdır.
+Kalıcı hafıza kullanıcı tarafından eklenebilir, düzenlenebilir ve silinebilir.
 
 ## Sohbet bağlamı
 
