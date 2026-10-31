@@ -85,6 +85,13 @@ class SupabaseDataStore:
             raise SupabaseDataError("Mesaj kaydedilemedi.")
         return rows[0]
 
+    def delete_conversation(self, conversation_id):
+        """Delete one owned conversation; RLS verifies ownership and cascades its messages."""
+        if not isinstance(conversation_id, str) or not conversation_id or len(conversation_id) > 64:
+            raise SupabaseDataError("Sohbet kimliği geçersiz.")
+        q = urllib.parse.urlencode({"id": "eq." + conversation_id})
+        self._request("DELETE", "nesil_conversations", q, prefer="return=minimal")
+
     def update_conversation_title(self, conversation_id, title):
         q = urllib.parse.urlencode({"id": "eq." + str(conversation_id)})
         self._request("PATCH", "nesil_conversations", q,
