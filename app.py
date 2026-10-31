@@ -424,6 +424,7 @@ with st.sidebar:
             st.download_button("Kaynak kayıtlarını indir", json.dumps(records, ensure_ascii=False, indent=2), file_name="nesil_ai_kaynaklar.json", mime="application/json")
     st.caption("Sistem komutu, e-posta gönderimi ve bilgisayar kontrolü yoktur. Python Mini kodları yalnızca tarayıcıdaki ayrı çalışma alanında çalışır.")
 
+st.markdown('<div class="nd-viewport-spacer" aria-hidden="true"></div>', unsafe_allow_html=True)
 main_col, rail_col = st.columns([3.05, 1.05], gap='medium')
 with main_col:
     profile_name = ((st.session_state.get("supabase_profile") or {}).get("display_name") or "").strip()
