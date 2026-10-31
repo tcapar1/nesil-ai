@@ -63,11 +63,18 @@ class SupabaseDataStore:
     def update_profile(self, display_name):
         if not isinstance(display_name, str) or len(display_name.strip()) > 80:
             raise SupabaseDataError("Görünen ad en fazla 80 karakter olabilir.")
-        q = urllib.parse.urlencode({"user_id": "eq." + self.user_id, "select": "user_id,display_name,updated_at"})
-        rows = self._request("PATCH", "nesil_profiles", q,
-                             {"display_name": display_name.strip()}, "return=representation")
+        # Upsert also repairs accounts created before the profile trigger existed.
+        q = urllib.parse.urlencode({
+            "on_conflict": "user_id",
+            "select": "user_id,display_name,updated_at",
+        })
+        rows = self._request(
+            "POST", "nesil_profiles", q,
+            {"user_id": self.user_id, "display_name": display_name.strip()},
+            "resolution=merge-duplicates,return=representation",
+        )
         if not rows:
-            raise SupabaseDataError("Profil güncellenemedi. Profil kaydı bulunamadı.")
+            raise SupabaseDataError("Profil kaydı oluşturulamadı veya güncellenemedi.")
         return rows[0]
 
     def list_conversations(self, limit=50):
