@@ -51,6 +51,9 @@ if principal != "public" and st.session_state.get("supabase_access_token"):
     auth_client = create_auth_client(st.secrets)
     try:
         data_store = create_data_store(st.secrets, st.session_state.supabase_access_token, principal)
+        if not st.session_state.get("supabase_profile_loaded"):
+            st.session_state.supabase_profile = data_store.get_profile()
+            st.session_state.supabase_profile_loaded = True
         if not st.session_state.get("supabase_conversations_loaded"):
             st.session_state.supabase_conversations = data_store.list_conversations()
             st.session_state.supabase_conversations_loaded = True
@@ -63,6 +66,8 @@ if principal != "public" and st.session_state.get("supabase_access_token"):
                 st.session_state.supabase_access_token = refreshed["access_token"]
                 st.session_state.supabase_refresh_token = refreshed["refresh_token"]
                 data_store = create_data_store(st.secrets, refreshed["access_token"], principal)
+                st.session_state.supabase_profile = data_store.get_profile()
+                st.session_state.supabase_profile_loaded = True
                 st.session_state.supabase_conversations = data_store.list_conversations()
                 st.session_state.supabase_conversations_loaded = True
                 memories = data_store.list_memory()
@@ -80,6 +85,18 @@ with st.sidebar:
     st.title("🤖 Nesil AI")
     st.caption("Türkçe yapay zekâ yardımcısı")
     st.caption("Genel sohbet ve diğer bulut modları Groq kullanır. Kodlama ve matematik modları yerel Ollama kullanır; otomatik bulut yedeği yoktur.")
+    if data_store:
+        with st.expander("👤 Profil ve hesap ayarları"):
+            current_name = (st.session_state.get("supabase_profile") or {}).get("display_name", "")
+            profile_name = st.text_input("Görünen ad", value=current_name, max_chars=80, key="profile_display_name")
+            st.caption("Hesap e-postası: " + str(st.session_state.get("supabase_user_email", "")))
+            if st.button("Profili kaydet", use_container_width=True):
+                try:
+                    updated_profile = data_store.update_profile(profile_name)
+                    st.session_state.supabase_profile = updated_profile
+                    st.success("Profil güncellendi.")
+                except SupabaseDataError as exc:
+                    st.error(str(exc))
     if is_admin:
         st.success("Yönetici hesabı")
         with st.expander("Yönetici hesabı bilgileri"):
