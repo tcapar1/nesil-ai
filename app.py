@@ -1,4 +1,4 @@
-"""Nesil AI: session-only Streamlit chat."""
+"""Nesil AI: Streamlit assistant with optional persistent Supabase user data."""
 import time
 import json
 import sqlite3
@@ -107,6 +107,7 @@ with st.sidebar:
                 row = data_store.create_conversation()
                 st.session_state.supabase_active_conversation = row["id"]
                 st.session_state.messages = []
+                st.session_state.pop("supabase_conversation_picker", None)
                 st.session_state.supabase_conversations_loaded = False
                 st.rerun()
             except SupabaseDataError as exc:
@@ -137,6 +138,7 @@ with st.sidebar:
                     data_store.delete_conversation(selected_id)
                     st.session_state.messages = []
                     st.session_state.pop("supabase_active_conversation", None)
+                    st.session_state.pop("supabase_conversation_picker", None)
                     st.session_state.supabase_conversations_loaded = False
                     st.session_state.delete_confirmation_generation += 1
                     st.success("Sohbet silindi.")
@@ -211,6 +213,7 @@ with st.sidebar:
     if st.button("Sohbeti temizle", use_container_width=True):
         st.session_state.messages = []
         st.session_state.pop("supabase_active_conversation", None)
+        st.session_state.pop("supabase_conversation_picker", None)
         st.session_state.pending_prompt = ""
         st.session_state.last_error = ""
         st.session_state.pop("source_review", None)
@@ -224,6 +227,7 @@ with st.sidebar:
     if st.button("Tüm oturum içeriğini temizle", use_container_width=True):
         # This clears this session only; saved database records remain available.
         st.session_state.pop("supabase_active_conversation", None)
+        st.session_state.pop("supabase_conversation_picker", None)
         # Rate-limit timers survive content deletion.
         for key in ("messages", "documents", "file_names", "pending_prompt", "last_error", "usage"):
             st.session_state.pop(key, None)
