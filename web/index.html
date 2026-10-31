@@ -16,11 +16,7 @@
     <aside class="sidebar">
       <a class="brand" href="#"><span class="brand-mark">N</span><span>nesilai</span></a>
       <button id="new-chat" class="new-chat">＋ <span>Yeni sohbet</span></button>
-      <div class="side-label">ÇALIŞMA ALANI</div>
-      <button class="nav-item active" data-view="chat">◈ <span>Sohbet</span></button>
-      <button class="nav-item" data-view="documents">▤ <span>Belgeler</span></button>
-      <button class="nav-item" data-view="memory">✧ <span>Hafıza</span></button>
-      <div class="side-label history-label">SON SOHBETLER</div>
+      <div class="side-label history-label">SOHBETLER</div>
       <div id="conversation-list" class="conversation-list"><p class="muted small">Sohbetler yükleniyor…</p></div>
       <div class="sidebar-bottom">
         <div class="user-chip"><div class="avatar" id="avatar">N</div><div class="user-meta"><strong id="user-email">Misafir</strong><span id="user-plan">Ücretsiz çalışma alanı</span></div><button id="sign-out" title="Çıkış yap" aria-label="Çıkış yap">↗</button></div>
@@ -37,7 +33,25 @@
       <section id="workspace" class="workspace hidden">
         <div id="welcome" class="welcome"><div class="eyebrow">nesilai · KİŞİSEL ASİSTANIN</div><h1>Bugün neyi<br><span>birlikte başaralım?</span></h1><p>Fikirlerini sorulara, sorularını sonuçlara dönüştür.</p><div class="prompt-grid"><button class="prompt-card" data-prompt="Bu konuyu adım adım açıkla."><span>✧</span><b>Öğren ve keşfet</b><small>Karmaşık konuları sadeleştir.</small></button><button class="prompt-card" data-prompt="Bu fikir için uygulanabilir bir plan hazırla."><span>⌁</span><b>Plan oluştur</b><small>Fikirlerini eyleme dönüştür.</small></button><button class="prompt-card" data-prompt="Bu metni daha açık ve profesyonel hale getir."><span>▤</span><b>Yaz ve düzenle</b><small>Metinlerini birlikte geliştir.</small></button></div></div>
         <div id="messages" class="messages hidden"></div>
-        <div class="composer-area"><form id="chat-form" class="composer"><textarea id="prompt" rows="1" placeholder="nesilai'ya bir şey sor…" aria-label="Mesajın"></textarea><div class="composer-footer"><span>Yanıtları önemli kararlar öncesinde doğrula.</span><button class="send-button" type="submit" aria-label="Gönder">↑</button></div></form></div>
+        <div class="composer-area">
+          <div id="tool-menu" class="tool-menu hidden" role="menu" aria-label="Araçlar">
+            <button type="button" class="tool-option" data-tool="upload"><span class="tool-icon">📎</span><span><b>Fotoğraf ve dosya ekle</b><small>Bilgisayardan yükle</small></span></button>
+            <button type="button" class="tool-option" data-tool="library"><span class="tool-icon">📁</span><span><b>Kitaplıktan ekle</b><small>Kaydedilmiş dosyalarına göz at</small></span><em>Yakında</em></button>
+            <button type="button" class="tool-option" data-tool="image"><span class="tool-icon">🖼️</span><span><b>Görsel oluştur</b><small>Fikirlerini görselleştir</small><em>Yakında</em></button>
+            <button type="button" class="tool-option" data-tool="web"><span class="tool-icon">🌐</span><span><b>Web araması</b><small>Güncel bilgi ve kaynak bul</small><em>Yakında</em></button>
+            <button type="button" class="tool-option" data-tool="research"><span class="tool-icon">🔎</span><span><b>Derin araştırma</b><small>Ayrıntılı rapor hazırla</small><em>Yakında</em></button>
+            <button type="button" class="tool-option" data-tool="think"><span class="tool-icon">◈</span><span><b>Düşün</b><small>Daha kapsamlı yanıt modu</small><em>Yakında</em></button>
+            <div class="tool-menu-divider"></div>
+            <button type="button" class="tool-option" data-tool="documents"><span class="tool-icon">▤</span><span><b>Belgelerim</b><small>Belge alanını aç</small></span></button>
+            <button type="button" class="tool-option" data-tool="memory"><span class="tool-icon">✧</span><span><b>Hafızam</b><small>Hafıza alanını aç</small></span></button>
+          </div>
+          <form id="chat-form" class="composer">
+            <input id="file-input" type="file" class="hidden" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.webp">
+            <div id="attachment-list" class="attachment-list hidden"></div>
+            <textarea id="prompt" rows="1" placeholder="nesilai'ya bir şey sor…" aria-label="Mesajın"></textarea>
+            <div class="composer-footer"><div class="composer-left"><button id="tools-button" class="plus-button" type="button" aria-label="Araçları aç" aria-expanded="false">+</button><span>Yanıtları önemli kararlar öncesinde doğrula.</span></div><button class="send-button" type="submit" aria-label="Gönder">↑</button></div>
+          </form>
+        </div>
         <p class="disclaimer">nesilai hata yapabilir. Önemli bilgileri kontrol et.</p>
       </section>
       <section id="documents-view" class="content-view hidden"><div class="view-heading"><div class="eyebrow">ÇALIŞMA ALANI</div><h1>Belgelerin</h1><p>Dosyalarını güvenli şekilde yönet.</p></div><div class="empty-panel"><div class="empty-icon">▤</div><h2>Belge alanı hazırlanıyor</h2><p>Özel dosya alanı, yükleme ve arama bağlantıları sonraki entegrasyon adımında etkinleştirilecek.</p></div></section>
