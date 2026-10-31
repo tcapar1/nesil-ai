@@ -43,9 +43,10 @@ class SupabaseDataTests(unittest.TestCase):
         with patch("urllib.request.urlopen", return_value=FakeResponse(body)) as opener:
             row = self.store.update_profile("Yeni Ad")
         req = opener.call_args.args[0]
-        self.assertEqual(req.get_method(), "PATCH")
-        self.assertIn("user_id=eq.user-1", req.full_url)
-        self.assertEqual(json.loads(req.data), {"display_name": "Yeni Ad"})
+        self.assertEqual(req.get_method(), "POST")
+        self.assertIn("on_conflict=user_id", req.full_url)
+        self.assertEqual(req.get_header("Prefer"), "resolution=merge-duplicates,return=representation")
+        self.assertEqual(json.loads(req.data), {"user_id": "user-1", "display_name": "Yeni Ad"})
         self.assertEqual(row["display_name"], "Yeni Ad")
 
     def test_update_profile_upserts_profile_for_existing_user(self):
