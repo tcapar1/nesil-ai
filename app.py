@@ -126,6 +126,19 @@ with st.sidebar:
                     st.rerun()
                 except SupabaseDataError as exc:
                     st.error(str(exc))
+            st.caption("Seçili sohbeti ve içindeki mesajları kalıcı olarak silmek için aşağıyı kullanın.")
+            confirm_delete = st.checkbox("Seçili sohbeti silmeyi onaylıyorum", key="confirm_delete_conversation")
+            if st.button("🗑️ Seçili sohbeti sil", disabled=not confirm_delete, use_container_width=True):
+                try:
+                    data_store.delete_conversation(selected_id)
+                    st.session_state.messages = []
+                    st.session_state.pop("supabase_active_conversation", None)
+                    st.session_state.supabase_conversations_loaded = False
+                    st.session_state.pop("confirm_delete_conversation", None)
+                    st.success("Sohbet silindi.")
+                    st.rerun()
+                except SupabaseDataError as exc:
+                    st.error(str(exc))
         st.subheader("🧠 Kalıcı hafıza")
         memory_text = st.text_area("Hatırlanmasını istediğiniz bilgi", max_chars=4000, key=f"memory_input_{st.session_state.memory_input_generation}")
         if st.button("Hafızaya kaydet", use_container_width=True):
