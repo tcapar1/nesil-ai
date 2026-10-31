@@ -99,7 +99,7 @@ class SupabaseFileStore:
 
     def delete(self, object_path):
         self._validate_path(object_path)
-        self._request("POST", "/storage/v1/object/" + BUCKET, {"prefixes": [object_path]}, "application/json")
+        self._request("DELETE", "/storage/v1/object/" + BUCKET, {"prefixes": [object_path]}, "application/json")
 
     def _validate_path(self, object_path):
         if not isinstance(object_path, str) or not object_path.startswith(self.user_id + "/") or ".." in object_path.split("/"):
