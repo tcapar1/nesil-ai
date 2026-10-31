@@ -426,10 +426,13 @@ with st.sidebar:
 
 main_col, rail_col = st.columns([3.05, 1.05], gap='medium')
 with main_col:
-    display_name = ((st.session_state.get("supabase_profile") or {}).get("display_name") or "")
+    profile_name = ((st.session_state.get("supabase_profile") or {}).get("display_name") or "").strip()
+    account_email = st.session_state.get("supabase_user_email", "")
+    account_handle = account_email.split("@", 1)[0].replace(".", " ").replace("_", " ").replace("-", " ").strip().title()
+    display_name = profile_name or account_handle or "Hoş geldiniz"
     provider_label = "Ollama (Yerel)" if mode in ("Kodlama yardımcısı", "Matematik öğretmeni") else "Groq"
     mode_label = "Yönetici" if is_admin else "Standart Ücretsiz" if principal != "public" else "Misafir"
-    show_dashboard_header(display_name or st.session_state.get("supabase_user_email", ""), provider_label, mode_label)
+    show_dashboard_header(display_name, provider_label, mode_label)
     show_quick_actions()
     if st.session_state.file_names:
         st.info("Dosya kesitleri hazır: " + ", ".join(st.session_state.file_names))
@@ -445,12 +448,13 @@ with main_col:
             ("📊", "Excel dosyasını analiz et.", "Yüklediğim Excel dosyasını analiz et ve önemli bulguları açıkla."),
             ("💡", "Bir plan hazırla.", "Hedefime ulaşmak için uygulanabilir, adım adım bir plan hazırla."),
         ]
-        sample_cols = st.columns(2, gap="small")
-        for sample_col, (symbol, label_text, question) in zip(sample_cols * 2, prompts):
-            with sample_col:
-                if st.button(symbol + "  " + label_text, key="sample_" + label_text, use_container_width=True):
-                    st.session_state.dashboard_quick_prompt = question
-                    st.rerun()
+        for row_start in (0, 2):
+            sample_cols = st.columns(2, gap="small")
+            for sample_col, (symbol, label_text, question) in zip(sample_cols, prompts[row_start:row_start + 2]):
+                with sample_col:
+                    if st.button(symbol + "  " + label_text, key="sample_" + label_text, use_container_width=True):
+                        st.session_state.dashboard_quick_prompt = question
+                        st.rerun()
     for message_index, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.markdown(message["content"])

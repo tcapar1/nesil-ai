@@ -9,8 +9,8 @@ def apply_theme():
         :root{--navy:#071b58;--blue:#2468f5;--blue2:#438cff;--muted:#7184aa;--line:#e2eafa;--panel:#fff}
         html,body,[class*="css"]{font-family:Inter,"Segoe UI",Arial,sans-serif}
         .stApp{background:linear-gradient(130deg,#f8faff 0%,#f2f6ff 54%,#edf3ff 100%);color:var(--navy)}
-        [data-testid="stHeader"]{background:rgba(248,250,255,.94);height:2.6rem}
-        [data-testid="stMain"] .block-container{max-width:1800px;padding:1rem clamp(1rem,1.8vw,2rem) 2rem}
+        [data-testid="stHeader"]{background:rgba(248,250,255,.97);height:3.75rem;z-index:1000}
+        [data-testid="stMain"] .block-container{max-width:1800px;padding:4.5rem clamp(1rem,1.8vw,2rem) 2rem}
         [data-testid="stSidebar"]{background:linear-gradient(180deg,#f8faff,#edf3ff);border-right:1px solid #dfe8f8;min-width:270px!important}
         [data-testid="stSidebar"]>div:first-child{padding:1rem .9rem}
         [data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.5rem}
@@ -19,7 +19,7 @@ def apply_theme():
         [data-testid="stSidebar"] .stButton>button{justify-content:flex-start;text-align:left;background:#ffffffb8;border:1px solid #dce7fa}
         h1,h2,h3{color:var(--navy)!important;letter-spacing:-.035em}
         p,label,.stCaption{color:var(--muted)}
-        .nd-topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:.05rem 0 1rem;padding:.15rem 0 .9rem;border-bottom:1px solid #e2eafa}
+        .nd-topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:0 0 1rem;padding:.25rem 0 .9rem;border-bottom:1px solid #e2eafa;min-height:78px;position:relative;z-index:1}
         .nd-brand{display:flex;align-items:center;gap:.7rem;min-width:250px}
         .nd-logo{width:54px;height:54px;display:grid;place-items:center;border-radius:17px;background:linear-gradient(145deg,#dceaff,#fff);border:1px solid #d5e4ff;font-size:2rem;box-shadow:0 8px 20px #2768ee18}
         .nd-brand strong{display:block;font-size:1.55rem;font-weight:850;color:#081b58;line-height:1.1}
@@ -31,7 +31,7 @@ def apply_theme():
         .nd-account{display:flex;align-items:center;gap:.65rem;padding:.45rem .7rem;border-radius:15px;background:#fff;border:1px solid #e4ebf8;min-width:150px}
         .nd-avatar{width:40px;height:40px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(140deg,#2468f5,#55a2ff);color:white;font-weight:800}
         .nd-account strong{display:block;font-size:.83rem;color:#10265e}.nd-account small{display:block;color:#7b8eaf;font-size:.68rem}
-        .nd-hero{position:relative;overflow:hidden;min-height:190px;display:flex;align-items:center;justify-content:space-between;padding:1.5rem 2rem;border-radius:20px;border:1px solid #d2e4ff;background:linear-gradient(112deg,#e8edff 0%,#cfe5ff 56%,#8dc6ff 100%);box-shadow:0 12px 30px #2356a20c;margin:.2rem 0 1rem}
+        .nd-hero{position:relative;overflow:hidden;min-height:180px;display:flex;align-items:center;justify-content:space-between;padding:1.5rem 2rem;border-radius:20px;border:1px solid #d2e4ff;background:linear-gradient(112deg,#e8edff 0%,#cfe5ff 56%,#8dc6ff 100%);box-shadow:0 12px 30px #2356a20c;margin:.2rem 0 1rem}
         .nd-hero-copy{position:relative;z-index:2;max-width:66%}.nd-eyebrow{font-size:.66rem;font-weight:850;letter-spacing:.15em;color:#3472dc}
         .nd-hero h1{font-size:clamp(1.65rem,2.4vw,2.25rem)!important;color:#071b58!important;margin:.45rem 0 .5rem;font-weight:850}
         .nd-hero p{font-size:.98rem;color:#153b87;line-height:1.6;max-width:670px;margin:0}
@@ -68,11 +68,11 @@ def apply_theme():
         .nd-chat-bubble{width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(135deg,#2468f5,#55a0ff);color:#fff;font-size:1.6rem}
         .nd-chat-welcome strong{display:block;color:#10265e;font-size:1.08rem}
         .nd-chat-welcome p{margin:.2rem 0 0;color:#7184aa;font-size:.83rem}
-        [data-testid="stMain"] .stButton>button{white-space:normal;line-height:1.35}
+        [data-testid="stMain"] .stButton>button{white-space:pre-line;line-height:1.35;text-align:left;justify-content:flex-start;min-height:88px;padding:.8rem .7rem;background:linear-gradient(145deg,#fff,#f8faff);border-color:#e0e9fa;box-shadow:0 6px 18px #1e3d780c;color:#10265e;font-size:.78rem}
         [data-testid="stMain"] [data-testid="stVerticalBlock"]>div:has(>.nd-rail-heading){padding:.3rem 0}
                 @media(max-width:1200px){.nd-models{gap:.2rem}.nd-model{padding:.45rem}.nd-model small{display:none}.nd-brand{min-width:180px}}
         @media(max-width:900px){.nd-topbar{flex-wrap:wrap}.nd-models{order:3;width:100%;justify-content:space-between}.nd-hero-copy{max-width:75%}.nd-robot-scene{opacity:.65}}
-        @media(max-width:700px){[data-testid="stMain"] .block-container{padding:.6rem .65rem 1.2rem}.nd-brand{min-width:0}.nd-brand strong{font-size:1.25rem}.nd-account{margin-left:auto;min-width:0}.nd-account small{display:none}.nd-models{overflow-x:auto}.nd-model{flex:1;justify-content:center}.nd-model strong{font-size:.7rem}.nd-hero{min-height:205px;padding:1.1rem}.nd-hero-copy{max-width:100%}.nd-hero p{font-size:.86rem}.nd-robot-scene{opacity:.15;right:-8%;width:55%}.nd-feature{min-height:90px;padding:.5rem;gap:.4rem}.nd-feature-icon{width:32px;height:32px;flex-basis:32px;font-size:1rem}.nd-feature strong{font-size:.68rem}.nd-feature small{font-size:.58rem}}
+        @media(max-width:700px){[data-testid="stMain"] .block-container{padding:4.25rem .65rem 1.2rem}.nd-brand{min-width:0}.nd-brand strong{font-size:1.25rem}.nd-account{margin-left:auto;min-width:0}.nd-account small{display:none}.nd-models{overflow-x:auto}.nd-model{flex:1;justify-content:center}.nd-model strong{font-size:.7rem}.nd-hero{min-height:205px;padding:1.1rem}.nd-hero-copy{max-width:100%}.nd-hero p{font-size:.86rem}.nd-robot-scene{opacity:.15;right:-8%;width:55%}.nd-feature{min-height:90px;padding:.5rem;gap:.4rem}.nd-feature-icon{width:32px;height:32px;flex-basis:32px;font-size:1rem}.nd-feature strong{font-size:.68rem}.nd-feature small{font-size:.58rem}}
         @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
         </style>
         """, unsafe_allow_html=True

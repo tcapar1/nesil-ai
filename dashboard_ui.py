@@ -51,12 +51,7 @@ def show_quick_actions():
     cols = st.columns(4, gap="small")
     for col, (icon, title, caption, prompt) in zip(cols, cards):
         with col:
-            st.markdown(
-                f'<div class="nd-feature"><div class="nd-feature-icon">{icon}</div>'
-                f'<div><strong>{title}</strong><small>{caption}</small></div><span class="nd-arrow">→</span></div>',
-                unsafe_allow_html=True,
-            )
-            if st.button("Aç", key="feature_" + title, use_container_width=True):
+            if st.button(f"{icon}  {title}\n{caption}  →", key="feature_" + title, use_container_width=True):
                 st.session_state.dashboard_quick_prompt = prompt
                 st.rerun()
 
