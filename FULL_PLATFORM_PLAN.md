@@ -82,6 +82,18 @@ Kabul: Sağlayıcı hatası kullanıcı mesajını kaybettirmez; kullanıcı ona
 
 ## Aşama 3 — Belge ve bilgi çalışma alanı
 
+### Belge kataloğu teslimatı (2026-10-31)
+
+- [x] Kullanıcıya özel belge meta verisi tablosu ve RLS politikaları.
+- [x] Dosya adına göre arama ve klasöre göre filtreleme.
+- [x] Belgeyi klasöre taşıma ve etiketlerini düzenleme.
+- [x] Storage nesnesi ile metadata kaydını birlikte oluşturma; metadata kaydı başarısızsa yüklenen nesneyi geri alma.
+- [x] Belge silme, indirme ve analiz alanına aktarma akışları.
+- [x] 100 kayıtlık sayfa sınırı ve kullanıcı JWT/RLS erişimi.
+- [ ] Yeni belge kataloğu migration'ını staging Supabase üzerinde uygulayıp iki kullanıcıyla izolasyon testi.
+- [ ] İçerik metni için tam metin arama ve sayfa/konum bazlı kaynak gösterimi.
+- [ ] OCR ve belge özetlerini kullanıcı onayıyla kalıcı saklama.
+
 ### İlk belge kitaplığı teslimatı (2026-10-31)
 
 - [x] Özel Supabase Storage istemcisi: kullanıcı JWT'siyle yükleme, listeleme, indirme ve silme.
