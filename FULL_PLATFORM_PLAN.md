@@ -53,6 +53,15 @@ Kabul: İki test kullanıcısı birbirinin sohbetini, hafızasını, dosyasını
 
 ## Aşama 2 — Yapay zekâ motoru ve sohbet
 
+### Sohbet yönetimi teslimatı (2026-10-31)
+
+- [x] Kalıcı sohbet başlıklarını arama/filtreleme.
+- [x] Sohbet başlığını kullanıcı tarafından yeniden adlandırma.
+- [x] Başlık güncelleme metodunda kimlik ve uzunluk doğrulaması; mock test.
+- [ ] Sabitleme, arşivleme ve klasörler.
+- [ ] Sağlayıcı/model seçimi ve yetenek görünümü.
+- [ ] Akışlı yanıt, durdurma ve güvenli yeniden deneme.
+
 - Sağlayıcı adaptörleri ve model kataloğu: Groq, yerel Ollama; ek sağlayıcılar yalnızca yapılandırma ve kullanıcı onayıyla.
 - Sağlayıcı/model seçimi, yetenek bildirimi, hata ve kota görünürlüğü.
 - Akışlı yanıt, iptal etme, yeniden deneme, yanıtı düzenleyerek tekrar gönderme.
