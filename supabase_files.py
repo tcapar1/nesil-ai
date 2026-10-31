@@ -43,6 +43,13 @@ class SupabaseFileStore:
                 raise SupabaseFileError("Dosya hizmetinden gelen yanıt izin verilen boyutu aşıyor.")
             return raw
         except urllib.error.HTTPError as exc:
+            # Supabase error bodies help diagnose policy/MIME/quota issues. Keep output bounded and redact paths/tokens.
+            try:
+                detail = exc.read(2048).decode("utf-8", errors="replace")
+                payload = json.loads(detail) if detail else {}
+                reason = str(payload.get("message") or payload.get("error_description") or payload.get("error") or "")[:180]
+            except Exception:
+                reason = ""
             if exc.code == 401:
                 raise SupabaseFileError("Oturumun süresi dolmuş. Yeniden giriş yapın.") from None
             if exc.code == 403:
@@ -51,7 +58,7 @@ class SupabaseFileStore:
                 raise SupabaseFileError("Özel dosya alanı bulunamadı. Supabase Storage migration dosyasını uygulayın.") from None
             if exc.code == 409:
                 raise SupabaseFileError("Aynı dosya kaydı zaten mevcut.") from None
-            raise SupabaseFileError("Dosya işlemi tamamlanamadı.") from None
+            raise SupabaseFileError(f"Dosya işlemi tamamlanamadı (HTTP {exc.code})." + (f" Ayrıntı: {reason}" if reason else "")) from None
         except (urllib.error.URLError, TimeoutError):
             raise SupabaseFileError("Supabase dosya alanına erişilemiyor.") from None
 
