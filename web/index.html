@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101827">
-  <meta name="description" content="NESIL AI — Türkçe yapay zekâ çalışma alanı">
-  <title>NESIL AI</title>
+  <meta name="description" content="NESILAI — Türkçe yapay zekâ çalışma alanı">
+  <title>NESILAI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14,7 +14,7 @@
 <body>
   <div id="app">
     <aside class="sidebar">
-      <a class="brand" href="#"><span class="brand-mark">N</span><span>NESIL <b>AI</b></span></a>
+      <a class="brand" href="#"><span class="brand-mark">N</span><span>NESILAI</span></a>
       <button id="new-chat" class="new-chat">＋ <span>Yeni sohbet</span></button>
       <div class="side-label">ÇALIŞMA ALANI</div>
       <button class="nav-item active" data-view="chat">◈ <span>Sohbet</span></button>
@@ -27,18 +27,18 @@
       </div>
     </aside>
     <main class="main">
-      <header class="topbar"><div class="mobile-brand"><span class="brand-mark">N</span> NESIL AI</div><div class="topbar-right"><span class="status-dot"></span><span>Güvenli çalışma alanı</span><button id="account-button" class="icon-button" aria-label="Hesap">⚙</button></div></header>
+      <header class="topbar"><div class="mobile-brand"><span class="brand-mark">N</span> NESILAI</div><div class="topbar-right"><span class="status-dot"></span><span>Güvenli çalışma alanı</span><button id="account-button" class="icon-button" aria-label="Hesap">⚙</button></div></header>
       <section id="auth-view" class="auth-wrap hidden">
-        <div class="auth-card"><div class="auth-logo"><span class="brand-mark">N</span></div><p class="eyebrow">YENİ NESİL ÇALIŞMA ALANI</p><h1>Fikirlerini hayata geçir.</h1><p class="muted">NESIL AI hesabına giriş yap veya ücretsiz hesabını oluştur.</p>
+        <div class="auth-card"><div class="auth-logo"><span class="brand-mark">N</span></div><p class="eyebrow">YENİ NESİL ÇALIŞMA ALANI</p><h1>Fikirlerini hayata geçir.</h1><p class="muted">NESILAI hesabına giriş yap veya ücretsiz hesabını oluştur.</p>
           <div class="auth-tabs"><button class="selected" data-auth="login">Giriş yap</button><button data-auth="signup">Hesap oluştur</button><button data-auth="reset">Şifremi unuttum</button></div>
           <form id="auth-form"><label for="email">E-posta adresi</label><input id="email" type="email" autocomplete="email" required placeholder="ornek@eposta.com"><label for="password" id="password-label">Şifre</label><input id="password" type="password" autocomplete="current-password" minlength="8" required placeholder="En az 8 karakter"><button class="primary full" type="submit" id="auth-submit">Giriş yap <span>→</span></button></form><p id="auth-message" class="form-message" aria-live="polite"></p><p class="fine-print">Devam ederek kullanım koşullarını ve gizlilik ilkelerini kabul etmiş olursun.</p>
         </div>
       </section>
       <section id="workspace" class="workspace hidden">
-        <div id="welcome" class="welcome"><div class="eyebrow">NESIL AI · KİŞİSEL ASİSTANIN</div><h1>Bugün neyi<br><span>birlikte başaralım?</span></h1><p>Fikirlerini sorulara, sorularını sonuçlara dönüştür.</p><div class="prompt-grid"><button class="prompt-card" data-prompt="Bu konuyu adım adım açıkla."><span>✧</span><b>Öğren ve keşfet</b><small>Karmaşık konuları sadeleştir.</small></button><button class="prompt-card" data-prompt="Bu fikir için uygulanabilir bir plan hazırla."><span>⌁</span><b>Plan oluştur</b><small>Fikirlerini eyleme dönüştür.</small></button><button class="prompt-card" data-prompt="Bu metni daha açık ve profesyonel hale getir."><span>▤</span><b>Yaz ve düzenle</b><small>Metinlerini birlikte geliştir.</small></button></div></div>
+        <div id="welcome" class="welcome"><div class="eyebrow">NESILAI · KİŞİSEL ASİSTANIN</div><h1>Bugün neyi<br><span>birlikte başaralım?</span></h1><p>Fikirlerini sorulara, sorularını sonuçlara dönüştür.</p><div class="prompt-grid"><button class="prompt-card" data-prompt="Bu konuyu adım adım açıkla."><span>✧</span><b>Öğren ve keşfet</b><small>Karmaşık konuları sadeleştir.</small></button><button class="prompt-card" data-prompt="Bu fikir için uygulanabilir bir plan hazırla."><span>⌁</span><b>Plan oluştur</b><small>Fikirlerini eyleme dönüştür.</small></button><button class="prompt-card" data-prompt="Bu metni daha açık ve profesyonel hale getir."><span>▤</span><b>Yaz ve düzenle</b><small>Metinlerini birlikte geliştir.</small></button></div></div>
         <div id="messages" class="messages hidden"></div>
-        <div class="composer-area"><form id="chat-form" class="composer"><textarea id="prompt" rows="1" placeholder="NESIL AI'ya bir şey sor…" aria-label="Mesajın"></textarea><div class="composer-footer"><span>Yanıtları önemli kararlar öncesinde doğrula.</span><button class="send-button" type="submit" aria-label="Gönder">↑</button></div></form></div>
-        <p class="disclaimer">NESIL AI hata yapabilir. Önemli bilgileri kontrol et.</p>
+        <div class="composer-area"><form id="chat-form" class="composer"><textarea id="prompt" rows="1" placeholder="NESILAI'ya bir şey sor…" aria-label="Mesajın"></textarea><div class="composer-footer"><span>Yanıtları önemli kararlar öncesinde doğrula.</span><button class="send-button" type="submit" aria-label="Gönder">↑</button></div></form></div>
+        <p class="disclaimer">NESILAI hata yapabilir. Önemli bilgileri kontrol et.</p>
       </section>
       <section id="documents-view" class="content-view hidden"><div class="view-heading"><div class="eyebrow">ÇALIŞMA ALANI</div><h1>Belgelerin</h1><p>Dosyalarını güvenli şekilde yönet.</p></div><div class="empty-panel"><div class="empty-icon">▤</div><h2>Belge alanı hazırlanıyor</h2><p>Özel dosya alanı, yükleme ve arama bağlantıları sonraki entegrasyon adımında etkinleştirilecek.</p></div></section>
       <section id="memory-view" class="content-view hidden"><div class="view-heading"><div class="eyebrow">KİŞİSELLEŞTİRME</div><h1>Hafızan</h1><p>Asistanın hatırlamasını istediğin bilgileri yönet.</p></div><div class="empty-panel"><div class="empty-icon">✧</div><h2>Hafıza alanı hazırlanıyor</h2><p>Kullanıcı kontrollü hafıza kayıtları Supabase bağlantısı tamamlandıktan sonra gösterilecek.</p></div></section>
