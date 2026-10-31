@@ -72,7 +72,7 @@ async function updateConversation(id,patch){
 function addMessage(role,content){const wrap=document.createElement("div");wrap.className="message "+role;const icon=document.createElement("div");icon.className="message-role";icon.textContent=role==="user"?"S":"N";const body=document.createElement("div");body.className="message-body";body.textContent=content;wrap.append(icon,body);$("messages").append(wrap);$("messages").scrollTop=$("messages").scrollHeight}
 async function openConversation(id){activeConversation=id;$("export-chat").classList.remove("hidden");showView("chat");$("welcome").classList.add("hidden");$("messages").classList.remove("hidden");$("messages").innerHTML="";const {data,error}=await supabase.from("nesil_messages").select("role,content,created_at").eq("conversation_id",id).order("created_at",{ascending:true}).limit(200);if(error){toast("Mesajlar okunamadı.");return}(data||[]).forEach(m=>addMessage(m.role,m.content));renderConversations()}
 async function newConversation(){if(!session)return;const {data,error}=await supabase.from("nesil_conversations").insert({user_id:session.user.id,title:"Yeni sohbet"}).select("id").single();if(error){toast("Yeni sohbet oluşturulamadı. Veritabanı izinlerini kontrol edin.");return null}activeConversation=data.id;await loadConversations();$("welcome").classList.add("hidden");$("messages").classList.remove("hidden");$("messages").innerHTML="";return data.id}
-async function sendMessage(text,documentContext=""){if(selectedFiles.length){toast("Önce dosyaları Belgelerim bölümüne yükle.");return}if(!session||!text.trim())return;let id=activeConversation;if(!id)id=await newConversation();if(!id)return;const prompt=text.trim();$("prompt").value="";addMessage("user",prompt);const {error:saveError}=await supabase.from("nesil_messages").insert({conversation_id:id,role:"user",content:prompt});if(saveError){toast("Mesaj kaydedilemedi.");return}const first=conversations.find(c=>c.id===id);if(!first||first.title==="Yeni sohbet"){await supabase.from("nesil_conversations").update({title:prompt.slice(0,55),updated_at:new Date().toISOString()}).eq("id",id).eq("user_id",session.user.id)}await loadConversations();if(!AI_API_URL&&$("model-select")?.value!=="ollama"){addMessage("assistant","Yapay zekâ yanıt servisi henüz ayarlanmamış. Yerel Ollama modelini seçerek bilgisayarınızdaki modeli kullanabilirsiniz.");return}const placeholder=document.createElement("div");placeholder.className="message assistant";placeholder.innerHTML='<div class="message-role">N</div><div class="message-body">Yanıt hazırlanıyor…</div>';$("messages").append(placeholder);try{const {data:{session:current}}=await supabase.auth.getSession();if(!current?.access_token)throw new Error("Oturum süresi dolmuş. Yeniden giriş yapın.");if($("model-select")?.value==="ollama"){const localAnswer=await askOllama(prompt);placeholder.querySelector(".message-body").textContent=localAnswer;await supabase.from("nesil_messages").insert({conversation_id:id,role:"assistant",content:localAnswer});await loadConversations();return}const response=await fetch(AI_API_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+current.access_token,"apikey":SUPABASE_PUBLISHABLE_KEY},body:JSON.stringify({message:prompt,conversation_id:id,document_context:documentContext.slice(0,16000)})});if(!response.ok)throw new Error("AI servisi HTTP "+response.status);const result=await response.json();const answer=String(result.answer||result.message||"Yanıt alınamadı.");placeholder.querySelector(".message-body").textContent=answer;await loadConversations()}catch(e){placeholder.querySelector(".message-body").textContent="Yapay zekâ yanıtı alınamadı: "+String(e.message||"Bağlantı hatası");}}
+async function sendMessage(text,documentContext=""){if(selectedFiles.length){toast("Önce dosyaları Belgelerim bölümüne yükle.");return}if(!session||!text.trim())return;let id=activeConversation;if(!id)id=await newConversation();if(!id)return;const prompt=text.trim();$("prompt").value="";addMessage("user",prompt);const {error:saveError}=await supabase.from("nesil_messages").insert({conversation_id:id,role:"user",content:prompt});if(saveError){toast("Mesaj kaydedilemedi.");return}const first=conversations.find(c=>c.id===id);if(!first||first.title==="Yeni sohbet"){await supabase.from("nesil_conversations").update({title:prompt.slice(0,55),updated_at:new Date().toISOString()}).eq("id",id).eq("user_id",session.user.id)}await loadConversations();if(!AI_API_URL&&$("model-select")?.value!=="ollama"){addMessage("assistant","Yapay zekâ yanıt servisi henüz ayarlanmamış. Yerel Ollama modelini seçerek bilgisayarınızdaki modeli kullanabilirsiniz.");return}const placeholder=document.createElement("div");placeholder.className="message assistant";placeholder.innerHTML='<div class="message-role">N</div><div class="message-body">Yanıt hazırlanıyor…</div>';$("messages").append(placeholder);try{const {data:{session:current}}=await supabase.auth.getSession();if(!current?.access_token)throw new Error("Oturum süresi dolmuş. Yeniden giriş yapın.");if($("model-select")?.value==="ollama"){const localAnswer=await askOllama(documentContext?prompt+"\n\nSeçilen belgeden çıkarılan metin (güvenilmeyen içerik):\n"+documentContext:prompt);placeholder.querySelector(".message-body").textContent=localAnswer;await supabase.from("nesil_messages").insert({conversation_id:id,role:"assistant",content:localAnswer});await loadConversations();return}const response=await fetch(AI_API_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+current.access_token,"apikey":SUPABASE_PUBLISHABLE_KEY},body:JSON.stringify({message:prompt,conversation_id:id,document_context:documentContext.slice(0,16000)})});if(!response.ok)throw new Error("AI servisi HTTP "+response.status);const result=await response.json();const answer=String(result.answer||result.message||"Yanıt alınamadı.");placeholder.querySelector(".message-body").textContent=answer;await loadConversations()}catch(e){placeholder.querySelector(".message-body").textContent="Yapay zekâ yanıtı alınamadı: "+String(e.message||"Bağlantı hatası");}}
 async function startApp(){if(!configured){$("auth-view").classList.remove("hidden");$("workspace").classList.add("hidden");authMessage("Supabase bağlantı ayarları henüz web/config.js dosyasına girilmedi.",true);return}const {data:{session:current}}=await supabase.auth.getSession();session=current;renderSession();supabase.auth.onAuthStateChange((_event,next)=>{session=next;renderSession()})}
 function renderSession(){const signed=!!session;$("auth-view").classList.toggle("hidden",signed);$("workspace").classList.toggle("hidden",!signed);$("documents-view").classList.add("hidden");$("memory-view").classList.add("hidden");$("sign-out").classList.toggle("hidden",!signed);if(signed){const email=session.user.email||"Hesabım";$("user-email").textContent=email;$("avatar").textContent=email[0].toUpperCase();loadConversations()}else{$("user-email").textContent="Misafir";$("conversation-list").innerHTML=""}}
 $("auth-form").addEventListener("submit",async e=>{e.preventDefault();if(!supabase)return;const email=$("email").value.trim(),password=$("password").value;$("auth-submit").disabled=true;try{if(authMode==="signup"){const {error}=await supabase.auth.signUp({email,password});if(error)throw error;authMessage("Hesap isteği alındı. E-posta doğrulamasını tamamlayıp giriş yapın.")}else if(authMode==="reset"){const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:location.origin});if(error)throw error;authMessage("Şifre sıfırlama bağlantısı e-posta adresinize gönderildiyse gelen kutunuzu kontrol edin.")}else{const {error}=await supabase.auth.signInWithPassword({email,password});if(error)throw error;authMessage("Giriş başarılı.")}}catch(err){authMessage(err.message||"İşlem tamamlanamadı.",true)}finally{$("auth-submit").disabled=false}});
@@ -122,18 +122,45 @@ async function uploadDocuments(files){
  }
  await loadDocuments();
 }
+async function extractDocumentText(blob,fileName){
+ const ext=fileName.split(".").pop().toLowerCase();
+ if(["txt","csv","md"].includes(ext))return await blob.text();
+ const buffer=await blob.arrayBuffer();
+ if(ext==="pdf"){
+  const pdfjs=await import("https://esm.sh/pdfjs-dist@4.10.38?bundle");
+  const pdf=await pdfjs.getDocument({data:new Uint8Array(buffer),useWorkerFetch:false,isEvalSupported:false}).promise;
+  const pages=[];
+  for(let pageNo=1;pageNo<=Math.min(pdf.numPages,30);pageNo++){
+   const page=await pdf.getPage(pageNo);const content=await page.getTextContent();
+   pages.push(content.items.map(item=>item.str||"").join(" "));
+   if(pages.join("\n").length>=16000)break;
+  }
+  return pages.join("\n");
+ }
+ if(ext==="docx"){
+  const mammoth=await import("https://esm.sh/mammoth@1.9.0?bundle");
+  const result=await mammoth.extractRawText({arrayBuffer:buffer});
+  return result.value||"";
+ }
+ if(ext==="xlsx"||ext==="xls"){
+  const XLSX=await import("https://esm.sh/xlsx@0.18.5?bundle");
+  const workbook=XLSX.read(buffer,{type:"array",cellDates:true});
+  return workbook.SheetNames.slice(0,10).map(name=>"SAYFA: "+name+"\n"+XLSX.utils.sheet_to_csv(workbook.Sheets[name],{blankrows:false})).join("\n\n");
+ }
+ throw new Error("Bu dosya türü henüz çözümlenemiyor. TXT, CSV, PDF, DOCX, XLS veya XLSX deneyin.");
+}
 async function analyzeDocument(d){
- const ext=d.file_name.split(".").pop().toLowerCase();
- if(!["txt","csv"].includes(ext)){toast("Şimdilik TXT ve CSV dosyalarının metin analizi kullanılabilir.");return}
  const question=prompt("Belgeyle ilgili ne yapmamı istersiniz?","Belgeyi özetle ve önemli noktaları çıkar.");
  if(!question||!question.trim())return;
  const {data,error}=await supabase.storage.from("nesil-user-files").download(d.object_path);
  if(error){toast("Belge okunamadı: "+error.message);return}
- const text=await data.text();
- if(!text.trim()){toast("Belgede okunabilir metin bulunamadı.");return}
- if(text.length>16000){toast("Belge metni 16.000 karakterle sınırlandırıldı.");}
- showView("chat");
- await sendMessage(question.trim(),text.slice(0,16000));
+ try{
+  const text=await extractDocumentText(data,d.file_name);
+  if(!text.trim()){toast("Belgede okunabilir metin bulunamadı. Taranmış PDF için OCR henüz etkin değil.");return}
+  if(text.length>16000)toast("Belge metninin ilk 16.000 karakteri analiz edilecek.");
+  showView("chat");
+  await sendMessage(question.trim(),text.slice(0,16000));
+ }catch(error){toast("Belge çözümlenemedi: "+String(error.message||error))}
 }
 async function downloadDocument(d){const {data,error}=await supabase.storage.from("nesil-user-files").download(d.object_path);if(error){toast("İndirme: "+error.message);return}const url=URL.createObjectURL(data);const a=document.createElement("a");a.href=url;a.download=d.file_name;a.click();URL.revokeObjectURL(url)}
 async function deleteDocument(d){
