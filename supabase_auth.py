@@ -71,6 +71,16 @@ class SupabaseAuthClient:
     def sign_up(self, email, password):
         return self._request("/auth/v1/signup", {"email": email.strip(), "password": password})
 
+    def request_password_reset(self, email, redirect_to=None):
+        """Ask Supabase Auth to send its configured password-recovery email."""
+        email = str(email or "").strip()
+        if not email or len(email) > 254 or "@" not in email:
+            raise SupabaseAuthError("Şifre sıfırlamak için geçerli e-posta adresi girin.")
+        payload = {"email": email}
+        if redirect_to:
+            payload["redirect_to"] = str(redirect_to)[:2048]
+        self._request("/auth/v1/recover", payload)
+
     def sign_in(self, email, password):
         result = self._request("/auth/v1/token?grant_type=password",
                                {"email": email.strip(), "password": password})
