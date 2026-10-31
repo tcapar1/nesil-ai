@@ -72,6 +72,21 @@ class SupabaseDataTests(unittest.TestCase):
         self.assertEqual(req.get_header("Apikey"), "public-key")
         self.assertIn("nesil_conversations", req.full_url)
 
+    def test_update_memory_patches_only_selected_memory(self):
+        with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
+            self.store.update_memory("memory-1", "Yeni bilgi")
+        req = opener.call_args.args[0]
+        self.assertEqual(req.get_method(), "PATCH")
+        self.assertIn("id=eq.memory-1", req.full_url)
+        self.assertEqual(json.loads(req.data)["memory_text"], "Yeni bilgi")
+        self.assertEqual(req.get_header("Authorization"), "Bearer user-jwt")
+
+    def test_update_memory_rejects_empty_and_oversized_text(self):
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_memory("memory-1", " ")
+        with self.assertRaises(SupabaseDataError):
+            self.store.update_memory("memory-1", "x" * 4001)
+
     def test_delete_conversation_uses_id_filter_and_delete_method(self):
         with patch("urllib.request.urlopen", return_value=FakeResponse(b"")) as opener:
             self.store.delete_conversation("conversation-1")
