@@ -40,7 +40,9 @@ with changed as (delete from public.nesil_memory_items where id='20000000-0000-4
 select is((select count(*)::int from changed),0,'user A cannot delete user B memory');
 select throws_ok($$insert into public.nesil_conversations(user_id,title) values ('00000000-0000-4000-8000-000000000002','hijack')$$,'42501',null,'user A cannot insert a conversation for user B');
 select throws_ok($$insert into storage.objects(bucket_id,name) values ('nesil-user-files','00000000-0000-4000-8000-000000000002/attack.pdf')$$,'42501',null,'user A cannot create a Storage object in user B folder');
-with changed as (delete from storage.objects where bucket_id='nesil-user-files' and name='00000000-0000-4000-8000-000000000002/b.pdf' returning 1)
-select is((select count(*)::int from changed),0,'user A cannot delete user B Storage object');
+select ok(exists(select 1 from pg_policies where schemaname='storage' and tablename='objects'
+  and policyname='nesil_user_files_delete_own' and cmd='DELETE'
+  and qual like '%nesil-user-files%' and qual like '%auth.uid%'),
+  'Storage DELETE policy restricts paths to the authenticated owner');
 select * from finish();
 rollback;

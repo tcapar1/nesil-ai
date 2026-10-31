@@ -1,5 +1,7 @@
 """Real JWT/RLS exercise against an ephemeral local Supabase stack in CI."""
 import os
+import json
+import urllib.request
 import unittest
 import uuid
 
@@ -58,6 +60,22 @@ class LocalSupabaseAuthRlsTests(unittest.TestCase):
             self.assertEqual(store_b.list_documents(), [])
             with self.assertRaises(SupabaseFileError):
                 files_b.download(description["path"])
+
+            # Exercise the Storage REST API with B's genuine JWT. The wrapper's
+            # local path guard would otherwise reject this before server RLS.
+            request = urllib.request.Request(
+                self.url.rstrip("/") + "/storage/v1/object/nesil-user-files",
+                data=json.dumps({"prefixes": [description["path"]]}).encode("utf-8"),
+                headers={"apikey": self.key, "Authorization": "Bearer " + b["access_token"],
+                         "Content-Type": "application/json"},
+                method="DELETE",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=15) as response:
+                    self.assertIn(response.status, (200, 204))
+            except urllib.error.HTTPError as error:
+                self.assertIn(error.code, (400, 403, 404))
+            self.assertEqual(files_a.download(description["path"]), raw)
 
             doc = store_a.list_documents()[0]
             delete_id = uuid.uuid4().hex
