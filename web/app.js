@@ -108,7 +108,7 @@ async function uploadDocuments(files){
   const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,180)||"document";
   const path=session.user.id+"/"+crypto.randomUUID()+"_"+safeName;
   try{
-   const digest=await crypto.subtle.digest("SHA-256",await file.arrayBuffer());
+   const {data:duplicates,error:duplicateError}=await supabase.from("nesil_documents").select("id").eq("user_id",session.user.id).eq("file_name",file.name.slice(0,180)).eq("file_size",file.size).limit(1);\n   if(duplicateError)throw duplicateError;\n   if(duplicates?.length&&!confirm("Aynı isim ve boyutta bir dosya zaten var. Yine de tekrar yüklensin mi?"))continue;\n   const digest=await crypto.subtle.digest("SHA-256",await file.arrayBuffer());
    const sha256=Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
    const {error:beginError}=await supabase.rpc("nesil_begin_document_upload",{p_operation_id:operationId,p_object_path:path,p_file_name:file.name.slice(0,180),p_file_size:file.size,p_content_type:mime,p_sha256:sha256});
    if(beginError)throw new Error("Belge işlem kaydı açılamadı. Gerekli güvenli belge migration'ı etkin olmayabilir: "+beginError.message);
