@@ -76,3 +76,15 @@
 .admin-user-status{flex:none;font-size:10px;color:#a8c0ff;background:#1b2940;border-radius:20px;padding:5px 9px}
 .admin-security-note{margin-top:14px;color:var(--muted);font-size:10px;line-height:1.6}
 @media(max-width:760px){.admin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-panel-heading{align-items:flex-start;flex-direction:column}.admin-user-row{align-items:flex-start;flex-direction:column}.admin-toolbar{align-items:flex-start}}
+
+/* Voice conversation controls */
+.voice-controls{display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding:7px 3px 10px;border-top:1px solid #26344b}
+.voice-controls button,.voice-controls select{border:1px solid #35445e;border-radius:8px;background:#1a2940;color:#dce6f8;padding:7px 9px;font-size:10px}
+.voice-controls button[aria-pressed="true"]{border-color:#7896ed;background:#26395e}
+.voice-controls label{font-size:10px;color:var(--muted)}
+.voice-controls select{max-width:180px;min-width:75px}
+.voice-controls .recording{background:#5b2632;border-color:#d45c72;color:#fff}
+.message-audio-controls{margin-top:8px}
+.message-audio-button{border:1px solid #35445e;background:#172338;color:#b9caff;border-radius:8px;padding:6px 9px;font-size:10px}
+.message-audio-button:hover{border-color:#819aff;background:#223451}
+@media(max-width:760px){.voice-controls{gap:5px}.voice-controls select{max-width:130px}.voice-controls button,.voice-controls select{font-size:9px;padding:7px}}
