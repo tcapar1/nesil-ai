@@ -43,9 +43,11 @@ Deno.serve(async (req: Request) => {
   if (!token) return response({ error: "Giriş oturumu gerekli." }, 401, origin);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const publicKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "";
+  const publishableKeys = JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") ?? "{}");
+  const publicKey = publishableKeys.default ?? Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "";
   const groqKey = Deno.env.get("GROQ_API_KEY") ?? "";
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}");
+  const serviceRoleKey = secretKeys.default ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !publicKey) return response({ error: "Sunucu Supabase ayarı eksik." }, 503, origin);
   if (!groqKey) return response({ error: "Yapay zekâ anahtarı henüz sunucuya eklenmedi. Yönetici GROQ_API_KEY sırrını tanımlamalı." }, 503, origin);
   if (!serviceRoleKey) return response({ error: "Kullanım kotası servisi henüz yapılandırılmamış." }, 503, origin);
