@@ -75,9 +75,6 @@ let voicePermissionStream=null;
 let activeSpeechControls=null;
 function resetSpeechControls(){
  if(!activeSpeechControls)return;
- activeSpeechControls.pause.disabled=true;
- activeSpeechControls.resume.disabled=true;
- activeSpeechControls.stop.disabled=true;
  activeSpeechControls.read.disabled=false;
  activeSpeechControls.read.textContent="🔊 Sesli dinle";
  activeSpeechControls=null;
@@ -104,18 +101,14 @@ function addResponseActions(wrap,responseText){
 }
 function addSpeakButton(wrap,text){
  const controls=document.createElement("div");controls.className="message-audio-controls";
- const makeButton=(label,title)=>{const b=document.createElement("button");b.type="button";b.className="message-audio-button";b.textContent=label;b.title=title;return b};
- const read=makeButton("🔊 Sesli dinle","Yanıtı sesli dinle");
- const pause=makeButton("⏸ Duraklat","Sesli okumayı duraklat");
- const resume=makeButton("▶ Devam","Sesli okumaya devam et");
- const stop=makeButton("⏹ Durdur","Sesli okumayı durdur");
- pause.disabled=true;resume.disabled=true;stop.disabled=true;
+ const read=document.createElement("button");read.type="button";read.className="message-audio-button";read.textContent="🔊 Sesli dinle";read.title="Yanıtı sesli dinle";
  read.onclick=()=>{
   if(!("speechSynthesis" in window)){toast("Bu tarayıcı sesli okumayı desteklemiyor.");return}
+  if(activeSpeechControls?.read===read){stopSpeech();return}
   const clean=String(text||"").trim();if(!clean)return;
   window.speechSynthesis.cancel();resetSpeechControls();
-  activeSpeechControls={read,pause,resume,stop};
-  read.disabled=true;read.textContent="🔊 Çalıyor…";pause.disabled=false;stop.disabled=false;
+  activeSpeechControls={read};
+  read.textContent="⏹ Durdur";
   const utterance=new SpeechSynthesisUtterance(clean);utterance.lang="tr-TR";
   const voices=window.speechSynthesis.getVoices();
   utterance.voice=voices.find(v=>/^tr(-|_)/i.test(v.lang))||null;
@@ -123,10 +116,7 @@ function addSpeakButton(wrap,text){
   utterance.onerror=resetSpeechControls;
   window.speechSynthesis.speak(utterance);
  };
- pause.onclick=()=>{if(window.speechSynthesis.speaking&&!window.speechSynthesis.paused){window.speechSynthesis.pause();pause.disabled=true;resume.disabled=false}};
- resume.onclick=()=>{if(window.speechSynthesis.paused){window.speechSynthesis.resume();pause.disabled=false;resume.disabled=true}};
- stop.onclick=stopSpeech;
- controls.append(read,pause,resume,stop);
+ controls.append(read);
  const body=wrap.querySelector(".message-body");if(body)body.append(controls);else wrap.append(controls);
 }
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
