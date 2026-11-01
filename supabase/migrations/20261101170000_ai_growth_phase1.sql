@@ -31,8 +31,8 @@ create policy "Users can submit own AI feedback"
       select 1
       from public.nesil_messages m
       join public.nesil_conversations c on c.id = m.conversation_id
-      where m.id = message_id
-        and m.conversation_id = conversation_id
+      where m.id = ai_feedback.message_id
+        and m.conversation_id = ai_feedback.conversation_id
         and c.user_id = auth.uid()
         and m.role = 'assistant'
     )
