@@ -71,6 +71,7 @@ async function updateConversation(id,patch){
  await loadConversations();
 }
 let voiceRecognition=null;
+let voicePermissionStream=null;
 function speakText(text){
  if(!("speechSynthesis" in window)){toast("Bu tarayıcı sesli okumayı desteklemiyor.");return}
  const clean=String(text||"").trim();if(!clean)return;
@@ -86,16 +87,60 @@ function addSpeakButton(wrap,text){
  read.onclick=()=>speakText(text);controls.append(read);wrap.append(controls);
 }
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-$("voice-mic").addEventListener("click",()=>{
+$("voice-mic").addEventListener("click",async()=>{
  if(!SpeechRecognition){toast("Konuşarak yazma bu tarayıcıda desteklenmiyor. Chrome veya Edge kullanın.");return}
  if(voiceRecognition){voiceRecognition.stop();return}
- voiceRecognition=new SpeechRecognition();voiceRecognition.lang="tr-TR";voiceRecognition.interimResults=true;voiceRecognition.continuous=false;
- const button=$("voice-mic");button.classList.add("recording");button.textContent="🔴 Dinleniyor…";
- let finalText="";
- voiceRecognition.onresult=event=>{let interim="";for(let i=event.resultIndex;i<event.results.length;i++){const part=event.results[i][0].transcript;if(event.results[i].isFinal)finalText+=part;else interim+=part}$("prompt").value=(finalText+interim).trim();$("prompt").dispatchEvent(new Event("input",{bubbles:true}))};
- voiceRecognition.onerror=event=>{if(event.error!=="no-speech"&&event.error!=="aborted")toast("Mikrofon hatası: "+event.error)};
- voiceRecognition.onend=()=>{button.classList.remove("recording");button.textContent="🎙 Mikrofon";voiceRecognition=null;$("prompt").focus()};
- try{voiceRecognition.start()}catch(error){voiceRecognition=null;button.classList.remove("recording");button.textContent="🎙 Mikrofon";toast("Mikrofon başlatılamadı: "+error.message)}
+ const button=$("voice-mic");
+ button.disabled=true;
+ button.textContent="🎙 Mikrofon açılıyor…";
+ try{
+  if(!navigator.mediaDevices?.getUserMedia)throw new Error("Tarayıcı mikrofon erişimini desteklemiyor.");
+  voicePermissionStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  voiceRecognition=new SpeechRecognition();
+  voiceRecognition.lang="tr-TR";
+  voiceRecognition.interimResults=true;
+  voiceRecognition.continuous=false;
+  button.classList.add("recording");
+  button.textContent="🔴 Dinleniyor…";
+  let finalText="";
+  voiceRecognition.onresult=event=>{
+   let interim="";
+   for(let i=event.resultIndex;i<event.results.length;i++){
+    const part=event.results[i][0].transcript;
+    if(event.results[i].isFinal)finalText+=part;else interim+=part;
+   }
+   $("prompt").value=(finalText+interim).trim();
+   $("prompt").dispatchEvent(new Event("input",{bubbles:true}));
+  };
+  voiceRecognition.onerror=event=>{
+   const messages={
+    "not-allowed":"Mikrofon erişimi açık ancak Chrome'un konuşma tanıma servisi erişimi reddetti. Chrome'u tamamen kapatıp yeniden açarak deneyin.",
+    "service-not-allowed":"Chrome'un konuşma tanıma servisi bu site için kullanıma izin vermedi.",
+    "audio-capture":"Mikrofon açılamadı. Windows Ses > Giriş bölümünü kontrol edin.",
+    "network":"Chrome konuşma tanıma servisine bağlanamadı. İnternet bağlantısını kontrol edin."
+   };
+   if(event.error!=="no-speech"&&event.error!=="aborted")toast(messages[event.error]||("Konuşma tanıma hatası: "+event.error));
+  };
+  voiceRecognition.onend=()=>{
+   button.classList.remove("recording");
+   button.textContent="🎙 Mikrofon";
+   button.disabled=false;
+   voicePermissionStream?.getTracks().forEach(track=>track.stop());
+   voicePermissionStream=null;
+   voiceRecognition=null;
+   $("prompt").focus();
+  };
+  voiceRecognition.start();
+ }catch(error){
+  voicePermissionStream?.getTracks().forEach(track=>track.stop());
+  voicePermissionStream=null;
+  voiceRecognition=null;
+  button.classList.remove("recording");
+  button.textContent="🎙 Mikrofon";
+  button.disabled=false;
+  const reason=error.name==="NotAllowedError"?"Windows veya Chrome mikrofon erişimini engelledi.":error.name==="NotFoundError"?"Kullanılabilir mikrofon bulunamadı.":error.name==="NotReadableError"?"Mikrofon başka bir uygulama tarafından kullanılıyor veya açılamıyor.":String(error.message||error);
+  toast("Mikrofon açılamadı: "+reason);
+ }
 });
 function addMessage(role,content){const wrap=document.createElement("div");wrap.className="message "+role;const icon=document.createElement("div");icon.className="message-role";icon.textContent=role==="user"?"S":"N";const body=document.createElement("div");body.className="message-body";body.textContent=content;wrap.append(icon,body);if(role==="assistant")addSpeakButton(wrap,content);$("messages").append(wrap);$("messages").scrollTop=$("messages").scrollHeight}
 async function openConversation(id){activeConversation=id;["export-chat","export-pdf","export-docx"].forEach(id=>$ (id).classList.remove("hidden"));showView("chat");$("welcome").classList.add("hidden");$("messages").classList.remove("hidden");$("messages").innerHTML="";const {data,error}=await supabase.from("nesil_messages").select("role,content,created_at").eq("conversation_id",id).order("created_at",{ascending:true}).limit(200);if(error){toast("Mesajlar okunamadı.");return}(data||[]).forEach(m=>addMessage(m.role,m.content));renderConversations()}
