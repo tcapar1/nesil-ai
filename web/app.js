@@ -30,8 +30,8 @@ $("tool-menu").addEventListener("click",e=>{
   const button=e.target.closest("[data-tool]");if(!button)return;
   const action=button.dataset.tool;closeToolMenu();
   if(action==="upload"){$("file-input").click();return}
-  if(action==="documents"||action==="memory"){showView(action);if(action==="documents")loadDocuments();else loadMemory();return}
-  toast("Bu özellik sonraki geliştirme aşamasında etkinleştirilecek.");
+  if(action==="documents"||action==="library"||action==="memory"){const target=action==="memory"?"memory":"documents";showView(target);if(target==="documents")loadDocuments();else loadMemory();return}
+  toast(action==="web"||action==="research"?"Kaynak doğrulamalı web araştırması henüz etkin değil; yanlış veya doğrulanmamış kaynak göstermemek için bekletiliyor.":action==="image"?"Görsel üretim servisi henüz bağlanmadı.":"Bu özellik henüz etkin değil.");
 });
 $("file-input").addEventListener("change",e=>{
   const incoming=Array.from(e.target.files||[]);
