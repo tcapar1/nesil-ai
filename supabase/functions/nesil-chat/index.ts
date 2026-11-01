@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const MODEL = "openai/gpt-oss-120b";
 const ALLOWED_ORIGINS = new Set([
   "https://nesilai.pages.dev",
+  "https://kirmizibeyazai.pages.dev",
   "http://localhost:8788",
   "http://127.0.0.1:8788",
 ]);
@@ -12,7 +13,7 @@ function isAllowedOrigin(origin: string) {
   try {
     const url = new URL(origin);
     return url.protocol === "https:" && url.port === "" &&
-      /^[a-z0-9-]+\.nesilai\.pages\.dev$/.test(url.hostname);
+      /^[a-z0-9-]+\.(nesilai|kirmizibeyazai)\.pages\.dev$/.test(url.hostname);
   } catch { return false; }
 }
 
@@ -174,16 +175,16 @@ Türkçe, açık, doğru ve yararlı cevaplar ver. Bilmediğin bilgileri uydurma
     const answer = String(result?.choices?.[0]?.message?.content ?? "").trim();
     if (!answer) return response({ error: "Yapay zekâ boş yanıt döndürdü." }, 502, origin);
 
-    const { error: saveError } = await supabase.from("nesil_messages").insert({
+    const { data: savedMessage, error: saveError } = await supabase.from("nesil_messages").insert({
       conversation_id: conversationId, role: "assistant", content: answer,
-    });
+    }).select("id").single();
     if (saveError) {
       console.error("Assistant message persistence failed");
       return response({ error: "Yanıt üretildi ancak sohbet geçmişine kaydedilemedi. Yeniden deneyin." }, 500, origin);
     }
     await supabase.from("nesil_conversations").update({ updated_at: new Date().toISOString() })
       .eq("id", conversationId).eq("user_id", user.id);
-    return response({ answer }, 200, origin);
+    return response({ answer, message_id: savedMessage.id }, 200, origin);
   } catch (error) {
     if (reservationId) await admin.rpc("nesil_finish_usage", { p_request_id: reservationId, p_actual_tokens: 0, p_retry_after: 0 });
     console.error("Chat handler failed", error instanceof Error ? error.name : "unknown");
