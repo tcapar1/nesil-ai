@@ -84,7 +84,7 @@ function speakText(text){
 function addSpeakButton(wrap,text){
  const controls=document.createElement("div");controls.className="message-audio-controls";
  const read=document.createElement("button");read.type="button";read.className="message-audio-button";read.textContent="🔊 Sesli dinle";read.setAttribute("aria-label","Yanıtı sesli dinle");
- read.onclick=()=>speakText(text);controls.append(read);wrap.append(controls);
+ read.onclick=()=>speakText(text);controls.append(read);const body=wrap.querySelector(".message-body");if(body)body.append(controls);else wrap.append(controls);
 }
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 $("voice-mic").addEventListener("click",async()=>{
