@@ -36,3 +36,6 @@ Panel salt okunurdur. Kullanıcı sohbetlerinin içeriklerini, parolaları veya 
 ## Doğrulama
 
 Dağıtımdan sonra `https://nesilai.pages.dev/` adresinde `tuncaycapar1@gmail.com` hesabıyla giriş yapın. Sol menüde **Yönetim paneli** görünmelidir. Normal kullanıcıda bu menü görünmez ve yönetici API'si HTTP 403 döndürür.
+
+
+Bu panel ilk sürümde salt okunur olarak sunulur; kullanıcı durumu değiştirme işlemleri sonraki güvenlik incelemesi olmadan açılmaz.
