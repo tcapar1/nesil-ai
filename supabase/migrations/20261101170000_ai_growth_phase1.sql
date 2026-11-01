@@ -38,6 +38,22 @@ create policy "Users can submit own AI feedback"
     )
   );
 
+create policy "Users can update own AI feedback"
+  on public.ai_feedback for update to authenticated
+  using (auth.uid() = user_id)
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1
+      from public.nesil_messages m
+      join public.nesil_conversations c on c.id = m.conversation_id
+      where m.id = ai_feedback.message_id
+        and m.conversation_id = ai_feedback.conversation_id
+        and c.user_id = auth.uid()
+        and m.role = 'assistant'
+    )
+  );
+
 -- Candidate records are written/reviewed by trusted server-side functions only.
 create table if not exists public.ai_learning_candidates (
   id uuid primary key default gen_random_uuid(),
