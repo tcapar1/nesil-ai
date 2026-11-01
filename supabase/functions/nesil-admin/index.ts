@@ -108,7 +108,7 @@ Deno.serve(async (request: Request) => {
       feedback: feedback.data || [], candidates: candidates.data || [],
     }, 200, origin);
   } catch (error) {
-    console.error("nesil-admin request failed:", error instanceof Error ? error.message : "unknown");
+    console.error("nesil-admin request failed:", error);
     return json({ error: "Admin data could not be loaded" }, 500, origin);
   }
 });
