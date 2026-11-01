@@ -89,3 +89,10 @@
 .message-audio-button:hover:not(:disabled){border-color:#819aff;background:#223451}
 .message-audio-button:disabled{opacity:.42;cursor:not-allowed}
 @media(max-width:760px){.voice-controls{gap:5px}.voice-controls select{max-width:130px}.voice-controls button,.voice-controls select{font-size:9px;padding:7px}}
+
+
+/* Compact response actions: copy, feedback, regenerate and share */
+.message-response-actions{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:9px}
+.response-action-button{display:inline-flex;align-items:center;justify-content:center;min-width:25px;height:25px;padding:3px 6px;border:1px solid transparent;border-radius:6px;background:transparent;color:#8292ad;font-size:12px;line-height:1;opacity:.78;transition:background .15s,border-color .15s,color .15s,opacity .15s}
+.response-action-button:hover,.response-action-button.selected{background:#1b2940;border-color:#40516c;color:#cbd8ff;opacity:1}
+.response-action-button:focus-visible{outline:2px solid #819aff;outline-offset:2px}
