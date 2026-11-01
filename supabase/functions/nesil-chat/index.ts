@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const MODEL = "openai/gpt-oss-120b";
 const ALLOWED_ORIGINS = new Set([
   "https://nesilai.pages.dev",
+  "https://kirmizibeyazai.pages.dev",
   "http://localhost:8788",
   "http://127.0.0.1:8788",
 ]);
