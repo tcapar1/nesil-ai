@@ -40,7 +40,7 @@ $("file-input").addEventListener("change",async e=>{
   if(!session){toast("Dosya yüklemek için önce giriş yapın.");return}
   // Store selected files in the signed-in user private document library.
   await uploadDocuments(incoming);
-});});
+});
 
 function toast(message){const el=$("toast");el.textContent=message;el.style.display="block";setTimeout(()=>el.style.display="none",3200)}
 function showView(name){view=name;for(const id of ["workspace","documents-view","memory-view"])$(id).classList.add("hidden");if(name==="chat")$("workspace").classList.remove("hidden");else $(name==="documents"?"documents-view":"memory-view").classList.remove("hidden");document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===name))}
