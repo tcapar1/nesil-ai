@@ -12,13 +12,14 @@ function isAllowedOrigin(origin: string) {
   try {
     const url = new URL(origin);
     return url.protocol === "https:" && url.port === "" &&
-      /^[a-z0-9-]+\\.nesilai\\.pages\\.dev$/.test(url.hostname);
+      /^[a-z0-9-]+\.nesilai\.pages\.dev$/.test(url.hostname);
   } catch { return false; }
 }
 
 function response(body: unknown, status = 200, origin = "") {
   const allowOrigin = isAllowedOrigin(origin) ? origin : "https://nesilai.pages.dev";
-  return new Response(JSON.stringify(body), {
+  const payload = status === 204 || status === 304 ? null : JSON.stringify(body);
+  return new Response(payload, {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
@@ -33,7 +34,7 @@ function response(body: unknown, status = 200, origin = "") {
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin") ?? "";
-  if (req.method === "OPTIONS") return response({ ok: true }, 204, origin);
+  if (req.method === "OPTIONS") return response(null, 204, origin);
   if (req.method !== "POST") return response({ error: "Yalnızca POST desteklenir." }, 405, origin);
   if (origin && !isAllowedOrigin(origin)) return response({ error: "Bu kaynaktan erişime izin verilmiyor." }, 403, origin);
 
