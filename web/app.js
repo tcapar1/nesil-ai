@@ -99,7 +99,8 @@ if("speechSynthesis" in window){refreshVoiceChoices();window.speechSynthesis.onv
 $("voice-auto").setAttribute("aria-pressed",String(autoReadAloud));
 $("voice-auto").textContent=autoReadAloud?"🔊 Otomatik ses: Açık":"🔊 Otomatik ses: Kapalı";
 $("voice-auto").addEventListener("click",()=>{autoReadAloud=!autoReadAloud;localStorage.setItem("nesil_voice_auto",String(autoReadAloud));$("voice-auto").setAttribute("aria-pressed",String(autoReadAloud));$("voice-auto").textContent=autoReadAloud?"🔊 Otomatik ses: Açık":"🔊 Otomatik ses: Kapalı";if(!autoReadAloud&&"speechSynthesis" in window)window.speechSynthesis.cancel();toast(autoReadAloud?"Yeni yanıtlar otomatik okunacak.":"Otomatik ses kapatıldı.")});
-$("voice-stop").addEventListener("click",()=>{if("speechSynthesis" in window)window.speechSynthesis.cancel();toast("Sesli okuma durduruldu.")});
+$("voice-pause").addEventListener("click",()=>{if(!("speechSynthesis" in window))return;if(window.speechSynthesis.speaking&&!window.speechSynthesis.paused){window.speechSynthesis.pause();$("voice-pause").textContent="▶ Devam et"}else if(window.speechSynthesis.paused){window.speechSynthesis.resume();$("voice-pause").textContent="Ⅱ Duraklat"}});
+$("voice-stop").addEventListener("click",()=>{if("speechSynthesis" in window)window.speechSynthesis.cancel();$("voice-pause").textContent="Ⅱ Duraklat";toast("Sesli okuma durduruldu.")});
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 $("voice-mic").addEventListener("click",()=>{
  if(!SpeechRecognition){toast("Konuşarak yazma bu tarayıcıda desteklenmiyor. Chrome veya Edge kullanın.");return}
