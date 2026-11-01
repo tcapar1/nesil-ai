@@ -98,7 +98,10 @@ function addResponseActions(wrap,responseText){
  const retry= document.createElement("button");retry.type="button";retry.className="response-action-menu-item";retry.textContent="Yeniden yanıtla";
  retry.onclick=()=>{let previous=wrap.previousElementSibling;while(previous&&!previous.classList.contains("user"))previous=previous.previousElementSibling;const question=previous?.querySelector(".message-body")?.textContent?.trim();if(!question){toast("Yeniden yanıtlamak için önceki soru bulunamadı.");return}wrap.remove();sendMessage(question)};
  const moreWrap=document.createElement("div");moreWrap.className="response-action-more";moreWrap.append(more);
- const menu=document.createElement("div");menu.className="response-action-menu hidden";menu.append(retry);moreWrap.append(menu);
+ const menu=document.createElement("div");menu.className="response-action-menu hidden";menu.append(retry);
+ const audioButton=body.querySelector(".message-audio-controls .message-audio-button");
+ if(audioButton){const audioItem=document.createElement("button");audioItem.type="button";audioItem.className="response-action-menu-item";audioItem.textContent="Sesli dinle / durdur";audioItem.onclick=()=>audioButton.click();menu.append(audioItem);audioButton.closest(".message-audio-controls").remove();}
+ moreWrap.append(menu);
  more.onclick=()=>menu.classList.toggle("hidden");
  document.addEventListener("click",e=>{if(!moreWrap.contains(e.target))menu.classList.add("hidden")});
  share.onclick=async()=>{const payload={title:"Nesil AI yanıtı",text:String(responseText||"")};try{if(navigator.share)await navigator.share(payload);else{await navigator.clipboard.writeText(payload.text);toast("Paylaşım desteklenmiyor; yanıt kopyalandı.")}}catch(e){if(e.name!=="AbortError")toast("Paylaşım gerçekleştirilemedi.")}};
