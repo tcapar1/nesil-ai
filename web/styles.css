@@ -84,7 +84,8 @@
 .voice-controls label{font-size:10px;color:var(--muted)}
 .voice-controls select{max-width:180px;min-width:75px}
 .voice-controls .recording{background:#5b2632;border-color:#d45c72;color:#fff}
-.message-audio-controls{margin-top:8px}
-.message-audio-button{border:1px solid #35445e;background:#172338;color:#b9caff;border-radius:8px;padding:6px 9px;font-size:10px}
-.message-audio-button:hover{border-color:#819aff;background:#223451}
+.message-audio-controls{margin-top:10px;display:flex;flex-wrap:wrap;gap:7px}
+.message-audio-button{border:1px solid #35445e;background:#172338;color:#b9caff;border-radius:8px;padding:7px 10px;font-size:11px;transition:background .15s,border-color .15s}
+.message-audio-button:hover:not(:disabled){border-color:#819aff;background:#223451}
+.message-audio-button:disabled{opacity:.42;cursor:not-allowed}
 @media(max-width:760px){.voice-controls{gap:5px}.voice-controls select{max-width:130px}.voice-controls button,.voice-controls select{font-size:9px;padding:7px}}
