@@ -3,6 +3,7 @@ name: Pages web checks
 on:
   push:
     branches:
+      - main
       - feature/pages-web-20261101
   pull_request:
     branches:
