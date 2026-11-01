@@ -87,28 +87,33 @@ function addResponseActions(wrap,responseText){
  const body=wrap.querySelector(".message-body");if(!body)return;
  const bar=document.createElement("div");bar.className="message-response-actions";
  const make=(label,title)=>{const b=document.createElement("button");b.type="button";b.className="response-action-button";b.textContent=label;b.title=title;b.setAttribute("aria-label",title);return b};
- const copy=make("📋","Yanıtı kopyala");
- const like=make("👍","Yanıt faydalı");
- const dislike=make("👎","Yanıt faydalı değil");
- const retry=make("🔄","Aynı soruyu yeniden yanıtla");
- const share=make("↗","Yanıtı paylaş");
+ const copy=make("▢","Yanıtı kopyala");
+ const share=make("♧","Yanıtı paylaş");
+ const like=make("♧","Yanıt faydalı");
+ const dislike=make("♧","Yanıt faydalı değil");
+ const more=make("⋮","Diğer işlemler");
  copy.onclick=async()=>{try{await navigator.clipboard.writeText(String(responseText||""));toast("Yanıt kopyalandı.")}catch(e){const field=document.createElement("textarea");field.value=String(responseText||"");document.body.append(field);field.select();const ok=document.execCommand("copy");field.remove();toast(ok?"Yanıt kopyalandı.":"Kopyalama başarısız.")}};
  const vote=(chosen,other,value)=>{chosen.classList.add("selected");other.classList.remove("selected");chosen.setAttribute("aria-pressed","true");other.setAttribute("aria-pressed","false");toast(value==="up"?"Geri bildiriminiz alındı: Faydalı.":"Geri bildiriminiz alındı: Faydalı değil.")};
  like.onclick=()=>vote(like,dislike,"up");dislike.onclick=()=>vote(dislike,like,"down");
+ const retry= document.createElement("button");retry.type="button";retry.className="response-action-menu-item";retry.textContent="Yeniden yanıtla";
  retry.onclick=()=>{let previous=wrap.previousElementSibling;while(previous&&!previous.classList.contains("user"))previous=previous.previousElementSibling;const question=previous?.querySelector(".message-body")?.textContent?.trim();if(!question){toast("Yeniden yanıtlamak için önceki soru bulunamadı.");return}wrap.remove();sendMessage(question)};
+ const moreWrap=document.createElement("div");moreWrap.className="response-action-more";moreWrap.append(more);
+ const menu=document.createElement("div");menu.className="response-action-menu hidden";menu.append(retry);moreWrap.append(menu);
+ more.onclick=()=>menu.classList.toggle("hidden");
+ document.addEventListener("click",e=>{if(!moreWrap.contains(e.target))menu.classList.add("hidden")});
  share.onclick=async()=>{const payload={title:"Nesil AI yanıtı",text:String(responseText||"")};try{if(navigator.share)await navigator.share(payload);else{await navigator.clipboard.writeText(payload.text);toast("Paylaşım desteklenmiyor; yanıt kopyalandı.")}}catch(e){if(e.name!=="AbortError")toast("Paylaşım gerçekleştirilemedi.")}};
- bar.append(copy,like,dislike,retry,share);body.append(bar);
+ bar.append(copy,share,like,dislike,moreWrap);body.append(bar);
 }
 function addSpeakButton(wrap,text){
  const controls=document.createElement("div");controls.className="message-audio-controls";
- const read=document.createElement("button");read.type="button";read.className="message-audio-button";read.textContent="🔊 Sesli dinle";read.title="Yanıtı sesli dinle";
+ const read=document.createElement("button");read.type="button";read.className="message-audio-button";read.textContent="🔊";read.title="Yanıtı sesli dinle";read.setAttribute("aria-label","Yanıtı sesli dinle");
  read.onclick=()=>{
   if(!("speechSynthesis" in window)){toast("Bu tarayıcı sesli okumayı desteklemiyor.");return}
   if(activeSpeechControls?.read===read){stopSpeech();return}
   const clean=String(text||"").trim();if(!clean)return;
   window.speechSynthesis.cancel();resetSpeechControls();
   activeSpeechControls={read};
-  read.textContent="⏹ Durdur";
+  read.textContent="⏹";
   const utterance=new SpeechSynthesisUtterance(clean);utterance.lang="tr-TR";
   const voices=window.speechSynthesis.getVoices();
   utterance.voice=voices.find(v=>/^tr(-|_)/i.test(v.lang))||null;
