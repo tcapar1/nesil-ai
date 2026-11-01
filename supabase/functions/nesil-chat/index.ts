@@ -4,6 +4,7 @@ const MODEL = "openai/gpt-oss-120b";
 const ALLOWED_ORIGINS = new Set([
   "https://nesilai.pages.dev",
   "https://kirmizibeyazai.pages.dev",
+  "https://kirmizibeyaz-ai.pages.dev",
   "http://localhost:8788",
   "http://127.0.0.1:8788",
 ]);
@@ -13,7 +14,7 @@ function isAllowedOrigin(origin: string) {
   try {
     const url = new URL(origin);
     return url.protocol === "https:" && url.port === "" &&
-      /^[a-z0-9-]+\.(nesilai|kirmizibeyazai)\.pages\.dev$/.test(url.hostname);
+      /^[a-z0-9-]+\.(nesilai|kirmizibeyaz-ai|kirmizibeyazai)\.pages\.dev$/.test(url.hostname);
   } catch { return false; }
 }
 
