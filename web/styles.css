@@ -96,3 +96,10 @@
 .response-action-button{display:inline-flex;align-items:center;justify-content:center;width:22px;min-width:22px;height:22px;padding:2px;border:1px solid transparent;border-radius:5px;background:transparent;color:#8292ad;font-size:10px;line-height:1;opacity:.72;transition:background .15s,border-color .15s,color .15s,opacity .15s}
 .response-action-button:hover,.response-action-button.selected{background:#1b2940;border-color:#40516c;color:#cbd8ff;opacity:1}
 .response-action-button:focus-visible{outline:2px solid #819aff;outline-offset:2px}
+
+
+.response-action-more{position:relative;display:inline-flex}
+.response-action-menu{position:absolute;left:0;top:calc(100% + 6px);z-index:15;min-width:130px;padding:5px;background:#202b3d;border:1px solid #3a4659;border-radius:8px;box-shadow:0 8px 24px #0007}
+.response-action-menu-item{width:100%;border:0;border-radius:6px;padding:8px 10px;background:transparent;color:#edf3fc;text-align:left;font-size:11px}
+.response-action-menu-item:hover{background:#344258}
+.message-audio-button{width:25px;min-width:25px;height:25px;padding:2px;font-size:14px}
