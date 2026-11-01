@@ -4,3 +4,4 @@ export const SUPABASE_URL = "https://zwdrqhqpbuvpqteuklbg.supabase.co";
 export const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_lK_aFCtsASkAi0b1KsfUpw_aiugJPG8";
 // Authenticated Supabase Edge Function; provider keys remain server-side.
 export const AI_API_URL = SUPABASE_URL + "/functions/v1/nesil-chat";
+export const ADMIN_API_URL = SUPABASE_URL + "/functions/v1/nesil-admin";
