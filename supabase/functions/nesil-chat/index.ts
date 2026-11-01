@@ -55,6 +55,7 @@ Deno.serve(async (req: Request) => {
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
 
+  let reservationId: string | null = null;
   try {
     const { data: authData, error: authError } = await supabase.auth.getUser(token);
     const user = authData?.user;
@@ -110,6 +111,7 @@ Deno.serve(async (req: Request) => {
       return response({ error: "Kullanım kotası doğrulanamadı. Lütfen biraz sonra tekrar deneyin." }, 503, origin);
     }
 
+    reservationId = String(reservation.request_id);
     const providerResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
@@ -120,6 +122,7 @@ Deno.serve(async (req: Request) => {
       const status = providerResponse.status;
       const retryAfter = Math.min(86400, Math.max(0, Number(providerResponse.headers.get("retry-after") ?? 0) || 0));
       await admin.rpc("nesil_finish_usage", { p_request_id: reservation.request_id, p_actual_tokens: 0, p_retry_after: retryAfter });
+      reservationId = null;
       if (status === 429) return response({ error: "Yapay zekâ kullanım limiti dolu. Bir süre sonra yeniden deneyin." }, 429, origin);
       console.error("Groq request failed", { status });
       return response({ error: status === 401 ? "Sunucu yapay zekâ anahtarı geçersiz." : "Yapay zekâ sağlayıcısından yanıt alınamadı." }, 502, origin);
@@ -127,6 +130,7 @@ Deno.serve(async (req: Request) => {
     const result = await providerResponse.json();
     const actualTokens = Number(result?.usage?.total_tokens ?? 0);
     await admin.rpc("nesil_finish_usage", { p_request_id: reservation.request_id, p_actual_tokens: Number.isFinite(actualTokens) ? Math.max(0, Math.trunc(actualTokens)) : 0, p_retry_after: 0 });
+    reservationId = null;
     const answer = String(result?.choices?.[0]?.message?.content ?? "").trim();
     if (!answer) return response({ error: "Yapay zekâ boş yanıt döndürdü." }, 502, origin);
 
@@ -141,6 +145,7 @@ Deno.serve(async (req: Request) => {
       .eq("id", conversationId).eq("user_id", user.id);
     return response({ answer }, 200, origin);
   } catch (error) {
+    if (reservationId) await admin.rpc("nesil_finish_usage", { p_request_id: reservationId, p_actual_tokens: 0, p_retry_after: 0 });
     console.error("Chat handler failed", error instanceof Error ? error.name : "unknown");
     return response({ error: "İstek işlenirken beklenmeyen bir hata oluştu." }, 500, origin);
   }
