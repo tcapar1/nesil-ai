@@ -88,9 +88,9 @@ function addResponseActions(wrap,responseText){
  const bar=document.createElement("div");bar.className="message-response-actions";
  const make=(label,title)=>{const b=document.createElement("button");b.type="button";b.className="response-action-button";b.textContent=label;b.title=title;b.setAttribute("aria-label",title);return b};
  const copy=make("▢","Yanıtı kopyala");
- const share=make("♧","Yanıtı paylaş");
- const like=make("♧","Yanıt faydalı");
- const dislike=make("♧","Yanıt faydalı değil");
+ const share=make("↗","Yanıtı paylaş");
+ const like=make("👍","Yanıt faydalı");
+ const dislike=make("👎","Yanıt faydalı değil");
  const more=make("⋮","Diğer işlemler");
  copy.onclick=async()=>{try{await navigator.clipboard.writeText(String(responseText||""));toast("Yanıt kopyalandı.")}catch(e){const field=document.createElement("textarea");field.value=String(responseText||"");document.body.append(field);field.select();const ok=document.execCommand("copy");field.remove();toast(ok?"Yanıt kopyalandı.":"Kopyalama başarısız.")}};
  const vote=(chosen,other,value)=>{chosen.classList.add("selected");other.classList.remove("selected");chosen.setAttribute("aria-pressed","true");other.setAttribute("aria-pressed","false");toast(value==="up"?"Geri bildiriminiz alındı: Faydalı.":"Geri bildiriminiz alındı: Faydalı değil.")};
