@@ -13,7 +13,7 @@ function isAllowedOrigin(origin: string) {
   try {
     const url = new URL(origin);
     return url.protocol === "https:" && url.port === "" &&
-      /^[a-z0-9-]+\.nesilai\.pages\.dev$/.test(url.hostname);
+      /^[a-z0-9-]+\.(nesilai|kirmizibeyazai)\.pages\.dev$/.test(url.hostname);
   } catch { return false; }
 }
 
