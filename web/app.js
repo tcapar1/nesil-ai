@@ -187,13 +187,61 @@ async function sendMessage(text,documentContext=""){if(!session)return;const typ
 async function startApp(){if(!configured){$("auth-view").classList.remove("hidden");$("workspace").classList.add("hidden");authMessage("Supabase bağlantı ayarları henüz web/config.js dosyasına girilmedi.",true);return}supabase.auth.onAuthStateChange((event,next)=>{if(event==="PASSWORD_RECOVERY")setRecoveryMode();session=next;renderSession()});const {data:{session:current}}=await supabase.auth.getSession();session=current;if(new URLSearchParams(location.hash.slice(1)).get("type")==="recovery")setRecoveryMode();renderSession()}
 function renderSession(){const signed=!!session;const recovery=authMode==="recovery";$("auth-view").classList.toggle("hidden",signed&&!recovery);$("workspace").classList.toggle("hidden",!signed||recovery);$("documents-view").classList.add("hidden");$("memory-view").classList.add("hidden");$("admin-view").classList.add("hidden");$("admin-nav").classList.add("hidden");$("sign-out").classList.toggle("hidden",!signed);if(signed&&!recovery){const email=session.user.email||"Hesabım";$("user-email").textContent=email;$("avatar").textContent=email[0].toUpperCase();loadConversations();checkAdminAccess()}else{isAdmin=false;if(!signed){$("user-email").textContent="Misafir";$("conversation-list").innerHTML=""}}}
 async function adminRequest(){const {data:{session:current}}=await supabase.auth.getSession();if(!current?.access_token)throw new Error("Oturum süresi dolmuş.");const response=await fetch(ADMIN_API_URL,{method:"GET",headers:{"Authorization":"Bearer "+current.access_token,"apikey":SUPABASE_PUBLISHABLE_KEY}});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(response.status===403?"Yönetici yetkiniz bulunmuyor.":"Yönetim verileri alınamadı.");return payload}
+async function adminAction(body){
+ const {data:{session:current}}=await supabase.auth.getSession();
+ if(!current?.access_token)throw new Error("Oturum süresi dolmuş.");
+ const response=await fetch(ADMIN_API_URL,{method:"POST",headers:{"Authorization":"Bearer "+current.access_token,"apikey":SUPABASE_PUBLISHABLE_KEY,"Content-Type":"application/json"},body:JSON.stringify(body)});
+ const payload=await response.json().catch(()=>({}));
+ if(!response.ok)throw new Error(payload.error||"Yönetici işlemi tamamlanamadı.");
+ return payload;
+}
+function renderGrowthCenter(data){
+ const candidates=$("admin-candidates"),feedback=$("admin-feedback");
+ if(!candidates||!feedback)return;
+ candidates.innerHTML="";
+ const pending=(data.candidates||[]).filter(item=>item.status==="pending");
+ $("admin-growth-status").textContent=pending.length+" bekleyen öneri · "+(data.feedback||[]).length+" geri bildirim";
+ if(!pending.length)candidates.textContent="Bekleyen öğrenme önerisi yok.";
+ pending.forEach(item=>{
+  const row=document.createElement("div");row.className="admin-growth-row";
+  const copy=document.createElement("div");copy.className="admin-growth-copy";
+  const title=document.createElement("strong");title.textContent=item.category+" · "+new Date(item.created_at).toLocaleString("tr-TR");
+  const body=document.createElement("p");body.textContent=item.candidate_text;
+  copy.append(title,body);const actions=document.createElement("div");actions.className="admin-growth-actions";
+  for(const [label,status] of [["Onayla","approved"],["Reddet","rejected"]]){
+   const button=document.createElement("button");button.type="button";button.textContent=label;
+   button.onclick=async()=>{button.disabled=true;try{await adminAction({action:"review_candidate",id:item.id,status});toast(status==="approved"?"Öneri onaylandı.":"Öneri reddedildi.");await loadAdminPanel()}catch(error){button.disabled=false;toast(error.message)}};
+   actions.append(button);
+  }
+  row.append(copy,actions);candidates.append(row);
+ });
+ feedback.innerHTML="";
+ const entries=data.feedback||[];
+ if(!entries.length)feedback.textContent="Henüz kullanıcı geri bildirimi yok.";
+ entries.forEach(item=>{
+  const row=document.createElement("div");row.className="admin-growth-row";
+  const copy=document.createElement("div");copy.className="admin-growth-copy";
+  const title=document.createElement("strong");title.textContent=(item.rating==="helpful"?"👍 Faydalı":"👎 Faydalı değil")+" · "+new Date(item.created_at).toLocaleString("tr-TR");
+  const body=document.createElement("p");body.textContent=item.reason||"Kullanıcı ek açıklama bırakmadı.";
+  const meta=document.createElement("small");meta.textContent="Mesaj kaydı: "+item.message_id;
+  copy.append(title,body,meta);row.append(copy);feedback.append(row);
+ });
+}
 async function checkAdminAccess(){try{const data=await adminRequest();isAdmin=Boolean(data.is_admin);$("admin-nav").classList.toggle("hidden",!isAdmin);if(isAdmin&&view==="admin")renderAdminDashboard(data)}catch{isAdmin=false;$("admin-nav").classList.add("hidden");if(view==="admin")showView("chat")}}
-function renderAdminDashboard(data){$("admin-users-total").textContent=Number(data.metrics?.users??0).toLocaleString("tr-TR");$("admin-conversations-total").textContent=Number(data.metrics?.conversations??0).toLocaleString("tr-TR");$("admin-messages-total").textContent=Number(data.metrics?.messages??0).toLocaleString("tr-TR");$("admin-documents-total").textContent=Number(data.metrics?.documents??0).toLocaleString("tr-TR");const list=$("admin-users");list.innerHTML="";(data.users||[]).forEach(user=>{const row=document.createElement("div");row.className="admin-user-row";const identity=document.createElement("div");identity.className="admin-user-identity";const email=document.createElement("strong");email.textContent=user.email||"E-posta yok";const meta=document.createElement("small");meta.textContent="Kayıt: "+(user.created_at?new Date(user.created_at).toLocaleDateString("tr-TR"):"—")+" · Son giriş: "+(user.last_sign_in_at?new Date(user.last_sign_in_at).toLocaleString("tr-TR"):"Henüz giriş yok");identity.append(email,meta);const status=document.createElement("span");status.className="admin-user-status";status.textContent=user.banned_until&&new Date(user.banned_until)>new Date()?"Askıda":user.email_confirmed_at?"Doğrulandı":"Doğrulanmadı";row.append(identity,status);list.append(row)});$("admin-user-count-note").textContent=(data.users||[]).length+" kullanıcı gösteriliyor · "+(data.users_truncated?"Liste ilk 100 kullanıcıyla sınırlı":"Kullanıcı listesi");$("admin-updated-at").textContent="Son güncelleme: "+new Date().toLocaleString("tr-TR")}
+function renderAdminDashboard(data){$("admin-users-total").textContent=Number(data.metrics?.users??0).toLocaleString("tr-TR");$("admin-conversations-total").textContent=Number(data.metrics?.conversations??0).toLocaleString("tr-TR");$("admin-messages-total").textContent=Number(data.metrics?.messages??0).toLocaleString("tr-TR");$("admin-documents-total").textContent=Number(data.metrics?.documents??0).toLocaleString("tr-TR");const list=$("admin-users");list.innerHTML="";(data.users||[]).forEach(user=>{const row=document.createElement("div");row.className="admin-user-row";const identity=document.createElement("div");identity.className="admin-user-identity";const email=document.createElement("strong");email.textContent=user.email||"E-posta yok";const meta=document.createElement("small");meta.textContent="Kayıt: "+(user.created_at?new Date(user.created_at).toLocaleDateString("tr-TR"):"—")+" · Son giriş: "+(user.last_sign_in_at?new Date(user.last_sign_in_at).toLocaleString("tr-TR"):"Henüz giriş yok");identity.append(email,meta);const status=document.createElement("span");status.className="admin-user-status";status.textContent=user.banned_until&&new Date(user.banned_until)>new Date()?"Askıda":user.email_confirmed_at?"Doğrulandı":"Doğrulanmadı";row.append(identity,status);list.append(row)});$("admin-user-count-note").textContent=(data.users||[]).length+" kullanıcı gösteriliyor · "+(data.users_truncated?"Liste ilk 100 kullanıcıyla sınırlı":"Kullanıcı listesi");$("admin-updated-at").textContent="Son güncelleme: "+new Date().toLocaleString("tr-TR");renderGrowthCenter(data)}
 async function loadAdminPanel(){if(!isAdmin)return;const list=$("admin-users");list.textContent="Yönetim verileri yükleniyor…";$("admin-refresh").disabled=true;try{renderAdminDashboard(await adminRequest())}catch(error){list.textContent=error.message;toast(error.message)}finally{$("admin-refresh").disabled=false}}
 $("auth-form").addEventListener("submit",async e=>{e.preventDefault();if(!supabase)return;const email=$("email").value.trim(),password=$("password").value;$("auth-submit").disabled=true;try{if(authMode==="recovery"){const {error}=await supabase.auth.updateUser({password});if(error)throw error;authMode="login";$("password").value="";toast("Şifreniz güncellendi. Yeni şifrenizle giriş yapabilirsiniz.");renderSession()}else if(authMode==="signup"){const {error}=await supabase.auth.signUp({email,password});if(error)throw error;authMessage("Hesap isteği alındı. E-posta doğrulamasını tamamlayıp giriş yapın.")}else if(authMode==="reset"){const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:location.origin});if(error)throw error;authMessage("Şifre sıfırlama bağlantısı e-posta adresinize gönderildiyse gelen kutunuzu kontrol edin.")}else{const {error}=await supabase.auth.signInWithPassword({email,password});if(error)throw error;authMessage("Giriş başarılı.")}}catch(err){authMessage(err.message||"İşlem tamamlanamadı.",true)}finally{$("auth-submit").disabled=false}});
 document.querySelectorAll("[data-auth]").forEach(b=>b.addEventListener("click",()=>setAuthMode(b.dataset.auth)));
 $("conversation-search").addEventListener("input",renderConversations);
 document.querySelectorAll(".nav-item").forEach(b=>b.addEventListener("click",()=>{showView(b.dataset.view);if(b.dataset.view==="documents")loadDocuments();if(b.dataset.view==="memory")loadMemory();if(b.dataset.view==="admin")loadAdminPanel()}));$("admin-refresh").addEventListener("click",loadAdminPanel);
+$("admin-candidate-add").addEventListener("click",async()=>{
+ const textValue=$("admin-candidate-text").value.trim(),category=$("admin-candidate-category").value.trim()||"general";
+ if(!textValue){toast("Öneri metnini yazın.");return}
+ const button=$("admin-candidate-add");button.disabled=true;
+ try{await adminAction({action:"create_candidate",candidate_text:textValue,category});$("admin-candidate-text").value="";toast("Öneri inceleme kuyruğuna eklendi; henüz uygulanmadı.");await loadAdminPanel()}
+ catch(error){toast(error.message)}
+ finally{button.disabled=false}
+});
 $("new-chat").onclick=async()=>{["export-chat","export-pdf","export-docx"].forEach(id=>$ (id).classList.add("hidden"));activeConversation=null;$("messages").innerHTML="";$("messages").classList.add("hidden");$("welcome").classList.remove("hidden");showView("chat")};
 $("chat-form").addEventListener("submit",e=>{e.preventDefault();sendMessage($("prompt").value)});
 $("prompt").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("chat-form").requestSubmit()}});
