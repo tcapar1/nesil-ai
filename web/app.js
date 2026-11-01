@@ -104,7 +104,7 @@ function addResponseActions(wrap,responseText){
  moreWrap.append(menu);
  more.onclick=()=>menu.classList.toggle("hidden");
  document.addEventListener("click",e=>{if(!moreWrap.contains(e.target))menu.classList.add("hidden")});
- share.onclick=async()=>{const payload={title:"Nesil AI yanıtı",text:String(responseText||"")};try{if(navigator.share)await navigator.share(payload);else{await navigator.clipboard.writeText(payload.text);toast("Paylaşım desteklenmiyor; yanıt kopyalandı.")}}catch(e){if(e.name!=="AbortError")toast("Paylaşım gerçekleştirilemedi.")}};
+ share.onclick=async()=>{const payload={title:"Kırmızı Beyaz AI yanıtı",text:String(responseText||"")};try{if(navigator.share)await navigator.share(payload);else{await navigator.clipboard.writeText(payload.text);toast("Paylaşım desteklenmiyor; yanıt kopyalandı.")}}catch(e){if(e.name!=="AbortError")toast("Paylaşım gerçekleştirilemedi.")}};
  bar.append(copy,share,like,dislike,moreWrap);body.append(bar);
 }
 function addSpeakButton(wrap,text){
@@ -174,7 +174,7 @@ $("voice-mic").addEventListener("click",async()=>{
  }catch(error){
   voiceRecognition=null;button.classList.remove("recording");button.textContent="🎙 Mikrofon";button.disabled=false;
   const detail=String(error.message||error);
-  const message=detail.startsWith("MIC_PERMISSION:")?"Nesil AI mikrofon iznini alamadı: "+detail.slice(16):
+  const message=detail.startsWith("MIC_PERMISSION:")?"Kırmızı Beyaz AI mikrofon iznini alamadı: "+detail.slice(16):
    detail.startsWith("SPEECH_START:")?"Mikrofon izni alındı; fakat Chrome konuşma tanımayı başlatamadı: "+detail.slice(13):
    detail==="GETUSERMEDIA_UNAVAILABLE"?"Chrome bu sayfada mikrofon erişim API'sini sunmuyor.":detail;
   toast(message);
@@ -350,7 +350,7 @@ async function getExportMessages(){
  if(!activeConversation||!session)throw new Error("Önce bir sohbet açın.");
  const {data,error}=await supabase.from("nesil_messages").select("role,content,created_at").eq("conversation_id",activeConversation).order("created_at",{ascending:true}).limit(500);
  if(error)throw error;
- return {title:conversations.find(c=>c.id===activeConversation)?.title||"Nesil AI sohbeti",messages:data||[]};
+ return {title:conversations.find(c=>c.id===activeConversation)?.title||"Kırmızı Beyaz AI sohbeti",messages:data||[]};
 }
 function exportFilename(title,ext){return (title.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ_-]+/gi,"_").slice(0,60)||"sohbet")+"."+ext}
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
@@ -360,9 +360,9 @@ async function exportStructured(kind){
   if(kind==="pdf"){
    const {jsPDF}=await import("https://esm.sh/jspdf@2.5.2?bundle");
    const doc=new jsPDF({unit:"mm",format:"a4"});let y=18;
-   doc.setFont("helvetica","bold");doc.setFontSize(16);doc.text("NESIL AI - "+title.slice(0,90),14,y);y+=12;
+   doc.setFont("helvetica","bold");doc.setFontSize(16);doc.text("KIRMIZI BEYAZ AI - "+title.slice(0,90),14,y);y+=12;
    for(const m of messages){
-    const label=(m.role==="user"?"Kullanici":"Nesil AI")+" - "+new Date(m.created_at).toLocaleString("tr-TR");
+    const label=(m.role==="user"?"Kullanici":"Kırmızı Beyaz AI")+" - "+new Date(m.created_at).toLocaleString("tr-TR");
     doc.setFont("helvetica","bold");doc.setFontSize(10);
     const lh=doc.splitTextToSize(label,180);if(y+lh.length*5>280){doc.addPage();y=18}doc.text(lh,14,y);y+=lh.length*5+2;
     doc.setFont("helvetica","normal");doc.setFontSize(10);
@@ -372,9 +372,9 @@ async function exportStructured(kind){
    downloadBlob(doc.output("blob"),exportFilename(title,"pdf"));
   }else{
    const lib=await import("https://esm.sh/docx@8.5.0?bundle");
-   const paragraphs=[new lib.Paragraph({text:"NESİL AI — "+title,heading:lib.HeadingLevel.TITLE})];
+   const paragraphs=[new lib.Paragraph({text:"KIRMIZI BEYAZ AI — "+title,heading:lib.HeadingLevel.TITLE})];
    for(const m of messages){
-    paragraphs.push(new lib.Paragraph({text:(m.role==="user"?"Kullanıcı":"Nesil AI")+" — "+new Date(m.created_at).toLocaleString("tr-TR"),heading:lib.HeadingLevel.HEADING_2}));
+    paragraphs.push(new lib.Paragraph({text:(m.role==="user"?"Kullanıcı":"Kırmızı Beyaz AI")+" — "+new Date(m.created_at).toLocaleString("tr-TR"),heading:lib.HeadingLevel.HEADING_2}));
     String(m.content||"").split("\n").forEach(line=>paragraphs.push(new lib.Paragraph({children:[new lib.TextRun(line)]})));
    }
    const doc=new lib.Document({sections:[{properties:{},children:paragraphs}]});
@@ -387,7 +387,7 @@ $("export-docx").onclick=()=>exportStructured("docx");
 $("export-chat").onclick=async()=>{
  if(!activeConversation||!session)return;
  let data,title;try{const result=await getExportMessages();data=result.messages;title=result.title}catch(e){toast("Sohbet dışa aktarılamadı.");return}
- const content=["NESİL AI — "+title,"",...(data||[]).map(m=>(m.role==="user"?"Kullanıcı":"Nesil AI")+" ("+new Date(m.created_at).toLocaleString("tr-TR")+")\\n"+m.content+"\\n")].join("\\n");
+ const content=["KIRMIZI BEYAZ AI — "+title,"",...(data||[]).map(m=>(m.role==="user"?"Kullanıcı":"Kırmızı Beyaz AI")+" ("+new Date(m.created_at).toLocaleString("tr-TR")+")\\n"+m.content+"\\n")].join("\\n");
  const blob=new Blob([content],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(title.replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ_-]+/gi,"_").slice(0,60)||"sohbet")+".txt";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
 $("messages").addEventListener("click",e=>{const message=e.target.closest(".message");if(!message)return});
