@@ -44,7 +44,7 @@ $("file-input").addEventListener("change",async e=>{
 });
 
 function toast(message){const el=$("toast");el.textContent=message;el.style.display="block";setTimeout(()=>el.style.display="none",3200)}
-function showView(name){if(name==="admin"&&!isAdmin){toast("Yönetici yetkisi gerekli.");return}if("speechSynthesis" in window)window.speechSynthesis.cancel();view=name;for(const id of ["workspace","documents-view","memory-view","admin-view"])$(id).classList.add("hidden");if(name==="chat")$("workspace").classList.remove("hidden");else $(name==="documents"?"documents-view":name==="memory"?"memory-view":"admin-view").classList.remove("hidden");document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===name))}
+function showView(name){if(name==="admin"&&!isAdmin){toast("Yönetici yetkisi gerekli.");return}stopSpeech();view=name;for(const id of ["workspace","documents-view","memory-view","admin-view"])$(id).classList.add("hidden");if(name==="chat")$("workspace").classList.remove("hidden");else $(name==="documents"?"documents-view":name==="memory"?"memory-view":"admin-view").classList.remove("hidden");document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===name))}
 function authMessage(message,error=false){$("auth-message").textContent=message;$("auth-message").style.color=error?"#ff9b9b":"#a8c0ff"}
 function setAuthMode(mode){authMode=mode;document.querySelectorAll("[data-auth]").forEach(b=>b.classList.toggle("selected",b.dataset.auth===mode));$("password").classList.toggle("hidden",mode==="reset");$("password").required=mode!=="reset";$("password-label").classList.toggle("hidden",mode==="reset");$("password-label").textContent="Şifre";$("password").autocomplete="current-password";$("password").placeholder="En az 8 karakter";$("auth-submit").innerHTML=(mode==="login"?"Giriş yap":mode==="signup"?"Hesap oluştur":"Sıfırlama bağlantısı gönder")+" <span>→</span>";authMessage("")}
 function setRecoveryMode(){authMode="recovery";document.querySelectorAll("[data-auth]").forEach(b=>b.classList.remove("selected"));$("password").classList.remove("hidden");$("password").required=true;$("password-label").classList.remove("hidden");$("password-label").textContent="Yeni şifre";$("password").autocomplete="new-password";$("password").placeholder="Yeni şifreniz (en az 8 karakter)";$("auth-submit").textContent="Şifreyi güncelle";authMessage("Yeni şifrenizi belirleyin.")}
@@ -72,19 +72,46 @@ async function updateConversation(id,patch){
 }
 let voiceRecognition=null;
 let voicePermissionStream=null;
-function speakText(text){
- if(!("speechSynthesis" in window)){toast("Bu tarayıcı sesli okumayı desteklemiyor.");return}
- const clean=String(text||"").trim();if(!clean)return;
- window.speechSynthesis.cancel();
- const utterance=new SpeechSynthesisUtterance(clean);utterance.lang="tr-TR";
- const voices=window.speechSynthesis.getVoices();
- utterance.voice=voices.find(v=>/^tr(-|_)/i.test(v.lang))||null;
- window.speechSynthesis.speak(utterance);
+let activeSpeechControls=null;
+function resetSpeechControls(){
+ if(!activeSpeechControls)return;
+ activeSpeechControls.pause.disabled=true;
+ activeSpeechControls.resume.disabled=true;
+ activeSpeechControls.stop.disabled=true;
+ activeSpeechControls.read.disabled=false;
+ activeSpeechControls.read.textContent="🔊 Sesli dinle";
+ activeSpeechControls=null;
+}
+function stopSpeech(){
+ if("speechSynthesis" in window)window.speechSynthesis.cancel();
+ resetSpeechControls();
 }
 function addSpeakButton(wrap,text){
  const controls=document.createElement("div");controls.className="message-audio-controls";
- const read=document.createElement("button");read.type="button";read.className="message-audio-button";read.textContent="🔊 Sesli dinle";read.setAttribute("aria-label","Yanıtı sesli dinle");
- read.onclick=()=>speakText(text);controls.append(read);const body=wrap.querySelector(".message-body");if(body)body.append(controls);else wrap.append(controls);
+ const makeButton=(label,title)=>{const b=document.createElement("button");b.type="button";b.className="message-audio-button";b.textContent=label;b.title=title;return b};
+ const read=makeButton("🔊 Sesli dinle","Yanıtı sesli dinle");
+ const pause=makeButton("⏸ Duraklat","Sesli okumayı duraklat");
+ const resume=makeButton("▶ Devam","Sesli okumaya devam et");
+ const stop=makeButton("⏹ Durdur","Sesli okumayı durdur");
+ pause.disabled=true;resume.disabled=true;stop.disabled=true;
+ read.onclick=()=>{
+  if(!("speechSynthesis" in window)){toast("Bu tarayıcı sesli okumayı desteklemiyor.");return}
+  const clean=String(text||"").trim();if(!clean)return;
+  window.speechSynthesis.cancel();resetSpeechControls();
+  activeSpeechControls={read,pause,resume,stop};
+  read.disabled=true;read.textContent="🔊 Çalıyor…";pause.disabled=false;stop.disabled=false;
+  const utterance=new SpeechSynthesisUtterance(clean);utterance.lang="tr-TR";
+  const voices=window.speechSynthesis.getVoices();
+  utterance.voice=voices.find(v=>/^tr(-|_)/i.test(v.lang))||null;
+  utterance.onend=resetSpeechControls;
+  utterance.onerror=resetSpeechControls;
+  window.speechSynthesis.speak(utterance);
+ };
+ pause.onclick=()=>{if(window.speechSynthesis.speaking&&!window.speechSynthesis.paused){window.speechSynthesis.pause();pause.disabled=true;resume.disabled=false}};
+ resume.onclick=()=>{if(window.speechSynthesis.paused){window.speechSynthesis.resume();pause.disabled=false;resume.disabled=true}};
+ stop.onclick=stopSpeech;
+ controls.append(read,pause,resume,stop);
+ const body=wrap.querySelector(".message-body");if(body)body.append(controls);else wrap.append(controls);
 }
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 $("voice-mic").addEventListener("click",async()=>{
