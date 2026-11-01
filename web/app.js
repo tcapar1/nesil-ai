@@ -35,7 +35,7 @@ $("tool-menu").addEventListener("click",e=>{
 });
 $("file-input").addEventListener("change",e=>{
   const incoming=Array.from(e.target.files||[]);
-  const allowed=/\.(pdf|doc|docx|xls|xlsx|csv|txt|png|jpe?g|webp)$/i;
+  const allowed=/\.(pdf|docx|xls|xlsx|csv|txt|md|png|jpe?g|webp)$/i;
   incoming.forEach(file=>{
     if(!allowed.test(file.name)){toast("Bu dosya türü henüz desteklenmiyor: "+file.name);return}
     if(selectedFiles.length<5)selectedFiles.push(file);
