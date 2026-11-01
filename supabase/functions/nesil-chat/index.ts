@@ -32,6 +32,30 @@ function response(body: unknown, status = 200, origin = "") {
   });
 }
 
+async function readJsonLimited(req: Request, maxBytes: number) {
+  const reader = req.body?.getReader();
+  if (!reader) throw new Error("INVALID_JSON_BODY");
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error("BODY_TOO_LARGE");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin") ?? "";
   if (req.method === "OPTIONS") return response(null, 204, origin);
@@ -65,7 +89,14 @@ Deno.serve(async (req: Request) => {
     if (authError || !user) return response({ error: "Oturum geçersiz veya süresi dolmuş. Yeniden giriş yapın." }, 401, origin);
 
     let body: { conversation_id?: string; message?: string; document_context?: string };
-    try { body = await req.json(); } catch { return response({ error: "İstek gövdesi geçersiz." }, 400, origin); }
+    try {
+      const declaredLength = Number(req.headers.get("content-length") ?? 0);
+      if (declaredLength > 65536) return response({ error: "İstek gövdesi 64 KB sınırını aşıyor." }, 413, origin);
+      body = await readJsonLimited(req, 65536);
+    } catch (error) {
+      if (error instanceof Error && error.message === "BODY_TOO_LARGE") return response({ error: "İstek gövdesi 64 KB sınırını aşıyor." }, 413, origin);
+      return response({ error: "İstek gövdesi geçersiz." }, 400, origin);
+    }
     const conversationId = String(body.conversation_id ?? "");
     const message = String(body.message ?? "").trim();
     if (!/^[0-9a-f-]{36}$/i.test(conversationId)) return response({ error: "Sohbet kimliği geçersiz." }, 400, origin);
