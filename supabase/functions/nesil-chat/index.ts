@@ -44,9 +44,12 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const publicKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "";
   const groqKey = Deno.env.get("GROQ_API_KEY") ?? "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !publicKey) return response({ error: "Sunucu Supabase ayarı eksik." }, 503, origin);
   if (!groqKey) return response({ error: "Yapay zekâ anahtarı henüz sunucuya eklenmedi. Yönetici GROQ_API_KEY sırrını tanımlamalı." }, 503, origin);
+  if (!serviceRoleKey) return response({ error: "Kullanım kotası servisi henüz yapılandırılmamış." }, 503, origin);
 
+  const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const supabase = createClient(supabaseUrl, publicKey, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${token}` } },
@@ -90,6 +93,23 @@ Deno.serve(async (req: Request) => {
       ...history,
     ];
 
+    const encoder = new TextEncoder();
+    const subjectDigest = await crypto.subtle.digest("SHA-256", encoder.encode(user.id));
+    const subjectHash = Array.from(new Uint8Array(subjectDigest), (b) => b.toString(16).padStart(2, "0")).join("");
+    const estimatedTokens = Math.min(7500, Math.max(1, Math.ceil(messages.reduce((sum, item) => sum + String(item.content).length, 0) / 3) + 1000));
+    const { data: reservation, error: reserveError } = await admin.rpc("nesil_reserve_usage", {
+      p_subject_hash: subjectHash,
+      p_estimated_tokens: estimatedTokens,
+    });
+    if (reserveError || !reservation?.request_id) {
+      const code = String(reserveError?.message ?? "");
+      if (code.includes("NESIL_MINUTE_LIMIT")) return response({ error: "Ücretsiz dakika kotası doldu. Yaklaşık bir dakika sonra tekrar deneyin." }, 429, origin);
+      if (code.includes("NESIL_DAILY_LIMIT")) return response({ error: "Günlük ücretsiz kullanım sınırına ulaşıldı. Yarın tekrar deneyebilirsiniz." }, 429, origin);
+      if (code.includes("NESIL_PROVIDER_COOLDOWN")) return response({ error: "Yapay zekâ servisi kısa süreli beklemede. Biraz sonra tekrar deneyin." }, 429, origin);
+      console.error("Usage reservation failed", { code: reserveError?.code ?? "unknown" });
+      return response({ error: "Kullanım kotası doğrulanamadı. Lütfen biraz sonra tekrar deneyin." }, 503, origin);
+    }
+
     const providerResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
@@ -98,11 +118,15 @@ Deno.serve(async (req: Request) => {
     });
     if (!providerResponse.ok) {
       const status = providerResponse.status;
+      const retryAfter = Math.min(86400, Math.max(0, Number(providerResponse.headers.get("retry-after") ?? 0) || 0));
+      await admin.rpc("nesil_finish_usage", { p_request_id: reservation.request_id, p_actual_tokens: 0, p_retry_after: retryAfter });
       if (status === 429) return response({ error: "Yapay zekâ kullanım limiti dolu. Bir süre sonra yeniden deneyin." }, 429, origin);
       console.error("Groq request failed", { status });
       return response({ error: status === 401 ? "Sunucu yapay zekâ anahtarı geçersiz." : "Yapay zekâ sağlayıcısından yanıt alınamadı." }, 502, origin);
     }
     const result = await providerResponse.json();
+    const actualTokens = Number(result?.usage?.total_tokens ?? 0);
+    await admin.rpc("nesil_finish_usage", { p_request_id: reservation.request_id, p_actual_tokens: Number.isFinite(actualTokens) ? Math.max(0, Math.trunc(actualTokens)) : 0, p_retry_after: 0 });
     const answer = String(result?.choices?.[0]?.message?.content ?? "").trim();
     if (!answer) return response({ error: "Yapay zekâ boş yanıt döndürdü." }, 502, origin);
 
