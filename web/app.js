@@ -33,15 +33,14 @@ $("tool-menu").addEventListener("click",e=>{
   if(action==="documents"||action==="library"||action==="memory"){const target=action==="memory"?"memory":"documents";showView(target);if(target==="documents")loadDocuments();else loadMemory();return}
   toast(action==="web"||action==="research"?"Kaynak doğrulamalı web araştırması henüz etkin değil; yanlış veya doğrulanmamış kaynak göstermemek için bekletiliyor.":action==="image"?"Görsel üretim servisi henüz bağlanmadı.":"Bu özellik henüz etkin değil.");
 });
-$("file-input").addEventListener("change",e=>{
+$("file-input").addEventListener("change",async e=>{
   const incoming=Array.from(e.target.files||[]);
-  const allowed=/\.(pdf|docx|xls|xlsx|csv|txt|md|png|jpe?g|webp)$/i;
-  incoming.forEach(file=>{
-    if(!allowed.test(file.name)){toast("Bu dosya türü henüz desteklenmiyor: "+file.name);return}
-    if(selectedFiles.length<5)selectedFiles.push(file);
-  });
-  renderAttachments();e.target.value="";
-});
+  e.target.value="";
+  if(!incoming.length)return;
+  if(!session){toast("Dosya yüklemek için önce giriş yapın.");return}
+  // Store selected files in the signed-in user private document library.
+  await uploadDocuments(incoming);
+});});
 
 function toast(message){const el=$("toast");el.textContent=message;el.style.display="block";setTimeout(()=>el.style.display="none",3200)}
 function showView(name){view=name;for(const id of ["workspace","documents-view","memory-view"])$(id).classList.add("hidden");if(name==="chat")$("workspace").classList.remove("hidden");else $(name==="documents"?"documents-view":"memory-view").classList.remove("hidden");document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===name))}
