@@ -53,8 +53,10 @@ Deno.serve(async (request: Request) => {
   const configuredAdmins = (Deno.env.get("NESIL_ADMIN_EMAILS") || "tuncaycapar1@gmail.com").split(/[;,]/).map((v) => v.trim().toLowerCase()).filter(Boolean);
   if (!configuredAdmins.includes(authData.user.email.trim().toLowerCase())) return json({ error: "Forbidden" }, 403, origin);
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  let stage = "request";
   try {
     if (request.method === "POST") {
+      stage = "post_action";
       const body = await request.json();
       if (body.action === "review_candidate") {
         const id = String(body.id || "");
@@ -79,6 +81,7 @@ Deno.serve(async (request: Request) => {
       }
       return json({ error: "Unknown action" }, 400, origin);
     }
+    stage = "overview_queries";
     const [conversations, messages, documents, feedback, candidates] = await Promise.all([
       admin.from("nesil_conversations").select("*", { count: "exact", head: true }),
       admin.from("nesil_messages").select("*", { count: "exact", head: true }),
@@ -87,6 +90,7 @@ Deno.serve(async (request: Request) => {
       admin.from("ai_learning_candidates").select("id,candidate_text,category,status,created_at,reviewed_at").order("created_at", { ascending: false }).limit(100),
     ]);
     for (const result of [conversations, messages, documents, feedback, candidates]) if (result.error) throw result.error;
+    stage = "list_users";
     const users = [];
     let page = 1;
     while (page <= 10) {
@@ -108,7 +112,8 @@ Deno.serve(async (request: Request) => {
       feedback: feedback.data || [], candidates: candidates.data || [],
     }, 200, origin);
   } catch (error) {
-    console.error("nesil-admin request failed:", error);
+    const detail = error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error;
+    console.error("nesil-admin request failed", JSON.stringify({ stage, detail }));
     return json({ error: "Admin data could not be loaded" }, 500, origin);
   }
 });
