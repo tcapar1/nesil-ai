@@ -46,7 +46,7 @@ jobs:
 
           config = Path("supabase/config.toml")
           content = config.read_text()
-          match = re.search(r"(?ms)(^\\[db\\]\\s*.*?^port\\s*=\\s*)\\d+", content)
+          match = re.search(r"(?ms)(^\[db\]\s*.*?^port\s*=\s*)\d+", content)
           if not match:
               raise SystemExit("Could not find [db].port in Supabase config")
 
