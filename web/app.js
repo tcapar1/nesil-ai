@@ -13,7 +13,7 @@ function renderAttachments(){
   selectedFiles.forEach((file,index)=>{
     const chip=document.createElement("div");chip.className="attachment-chip";
     const name=document.createElement("span");name.textContent="📎 "+file.file_name;name.title=file.file_name;
-    const remove=document.createElement("button");remove.type="button";remove.textContent="×";remove.setAttribute("aria-label",file.name+" dosyasını kaldır");
+    const remove=document.createElement("button");remove.type="button";remove.textContent="×";remove.setAttribute("aria-label",file.file_name+" dosyasını kaldır");
     remove.onclick=()=>{selectedFiles.splice(index,1);renderAttachments()};
     chip.append(name,remove);wrap.append(chip);
   });
@@ -39,8 +39,8 @@ $("file-input").addEventListener("change",async e=>{
   e.target.value="";
   if(!incoming.length)return;
   if(!session){toast("Dosya yüklemek için önce giriş yapın.");return}
-  // Store selected files in the signed-in user private document library.
-  await uploadDocuments(incoming);
+  // Upload securely to the private library and attach the saved documents to this chat.
+  await uploadDocuments(incoming,{attachToChat:true});
 });
 
 function toast(message){const el=$("toast");el.textContent=message;el.style.display="block";setTimeout(()=>el.style.display="none",3200)}
@@ -95,9 +95,10 @@ async function loadDocuments(){
  const attach=document.createElement("button");attach.textContent=selectedFiles.some(x=>x.id===d.id)?"Eklendi":"Sohbete ekle";attach.disabled=selectedFiles.some(x=>x.id===d.id);attach.onclick=()=>{if(selectedFiles.length>=5){toast("En fazla 5 belge ekleyebilirsiniz.");return}selectedFiles.push(d);renderAttachments();showView("chat");$("prompt").focus();toast(d.file_name+" sohbete eklendi.");};const del=document.createElement("button");del.textContent="Sil";del.onclick=()=>deleteDocument(d);actions.append(analyze,down,attach,del);row.append(title,actions);box.append(row)});
  if(!box.children.length)box.textContent="Henüz belge yok.";
 }
-async function uploadDocuments(files){
+async function uploadDocuments(files,{attachToChat=false}={}){
  if(!session)return;
  const batch=Array.from(files||[]);
+ let attachedCount=0;
  if(batch.length>5){toast("Bir seferde en fazla 5 dosya yükleyebilirsiniz.");return}
  const allowed=new Set(["application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","text/csv","text/plain","image/png","image/jpeg","image/webp"]);
  for(const file of batch){
@@ -119,12 +120,25 @@ async function uploadDocuments(files){
    if(uploadError)throw uploadError;
    const {error:finishError}=await supabase.rpc("nesil_finish_document_upload",{p_operation_id:operationId});
    if(finishError)throw new Error("Dosya yüklendi ancak katalog kaydı tamamlanamadı. Silmeden önce destek/onarım gerekir: "+finishError.message);
-   toast(file.name+" yüklendi ve Belgelerim listesine eklendi.");
+   if(attachToChat){
+    if(selectedFiles.length>=5){toast(file.name+" kitaplığa kaydedildi; sohbete en fazla 5 dosya eklenebilir.");}
+    else{
+     const {data:uploadedDoc,error:catalogError}=await supabase.from("nesil_documents").select("id,file_name,object_path,file_size,created_at").eq("user_id",session.user.id).eq("object_path",path).maybeSingle();
+     if(catalogError||!uploadedDoc){toast(file.name+" kitaplığa kaydedildi ancak sohbet eki olarak alınamadı.");}
+     else{selectedFiles.push(uploadedDoc);attachedCount++;}
+    }
+   }else toast(file.name+" yüklendi ve Belgelerim listesine eklendi.");
   }catch(error){
    toast(file.name+": "+String(error.message||error));
   }
  }
  await loadDocuments();
+ if(attachToChat&&attachedCount){
+  showView("chat");
+  renderAttachments();
+  $("prompt").focus();
+  toast(attachedCount+" dosya yüklendi ve sohbet mesajına eklendi. Sorunuzu yazabilirsiniz.");
+ }
 }
 async function runOcrOnCanvas(canvas){
  const mod=await import("https://esm.sh/tesseract.js@6.0.1?bundle");
