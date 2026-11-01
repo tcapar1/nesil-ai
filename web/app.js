@@ -88,20 +88,22 @@ function addSpeakButton(wrap,text){
 }
 const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 $("voice-mic").addEventListener("click",async()=>{
- if(!SpeechRecognition){toast("Konuşarak yazma bu tarayıcıda desteklenmiyor. Chrome veya Edge kullanın.");return}
+ if(!SpeechRecognition){toast("Konuşarak yazma bu tarayıcıda desteklenmiyor.");return}
  if(voiceRecognition){voiceRecognition.stop();return}
  const button=$("voice-mic");
- button.disabled=true;
- button.textContent="🎙 Mikrofon açılıyor…";
+ button.disabled=true;button.textContent="🎙 Mikrofon kontrol ediliyor…";
  try{
-  if(!navigator.mediaDevices?.getUserMedia)throw new Error("Tarayıcı mikrofon erişimini desteklemiyor.");
-  voicePermissionStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  if(!navigator.mediaDevices?.getUserMedia)throw new Error("GETUSERMEDIA_UNAVAILABLE");
+  let testStream;
+  try{testStream=await navigator.mediaDevices.getUserMedia({audio:true})}
+  catch(error){throw new Error("MIC_PERMISSION:"+error.name+":"+error.message)}
+  // Release the permission-test stream before Chrome starts its own speech capture.
+  testStream.getTracks().forEach(track=>track.stop());
   voiceRecognition=new SpeechRecognition();
   voiceRecognition.lang="tr-TR";
   voiceRecognition.interimResults=true;
   voiceRecognition.continuous=false;
-  button.classList.add("recording");
-  button.textContent="🔴 Dinleniyor…";
+  button.classList.add("recording");button.textContent="🔴 Dinleniyor…";
   let finalText="";
   voiceRecognition.onresult=event=>{
    let interim="";
@@ -113,33 +115,28 @@ $("voice-mic").addEventListener("click",async()=>{
    $("prompt").dispatchEvent(new Event("input",{bubbles:true}));
   };
   voiceRecognition.onerror=event=>{
-   const messages={
-    "not-allowed":"Mikrofon erişimi açık ancak Chrome'un konuşma tanıma servisi erişimi reddetti. Chrome'u tamamen kapatıp yeniden açarak deneyin.",
-    "service-not-allowed":"Chrome'un konuşma tanıma servisi bu site için kullanıma izin vermedi.",
-    "audio-capture":"Mikrofon açılamadı. Windows Ses > Giriş bölümünü kontrol edin.",
-    "network":"Chrome konuşma tanıma servisine bağlanamadı. İnternet bağlantısını kontrol edin."
+   const descriptions={
+    "not-allowed":"Chrome mikrofon iznini tanıdı ancak konuşma tanıma servisi erişimi reddetti (SpeechRecognition: not-allowed).",
+    "service-not-allowed":"Chrome konuşma tanıma servisi bu site için kullanıma izin vermedi.",
+    "audio-capture":"Konuşma tanıma servisi mikrofon cihazını açamadı.",
+    "network":"Chrome konuşma tanıma servisine bağlanamadı (network).",
+    "language-not-supported":"Türkçe konuşma tanıma bu tarayıcıda desteklenmiyor."
    };
-   if(event.error!=="no-speech"&&event.error!=="aborted")toast(messages[event.error]||("Konuşma tanıma hatası: "+event.error));
+   if(event.error!=="no-speech"&&event.error!=="aborted")toast(descriptions[event.error]||("Konuşma tanıma hatası: "+event.error));
   };
   voiceRecognition.onend=()=>{
-   button.classList.remove("recording");
-   button.textContent="🎙 Mikrofon";
-   button.disabled=false;
-   voicePermissionStream?.getTracks().forEach(track=>track.stop());
-   voicePermissionStream=null;
-   voiceRecognition=null;
-   $("prompt").focus();
+   button.classList.remove("recording");button.textContent="🎙 Mikrofon";button.disabled=false;
+   voiceRecognition=null;$("prompt").focus();
   };
-  voiceRecognition.start();
+  try{voiceRecognition.start()}
+  catch(error){throw new Error("SPEECH_START:"+error.name+":"+error.message)}
  }catch(error){
-  voicePermissionStream?.getTracks().forEach(track=>track.stop());
-  voicePermissionStream=null;
-  voiceRecognition=null;
-  button.classList.remove("recording");
-  button.textContent="🎙 Mikrofon";
-  button.disabled=false;
-  const reason=error.name==="NotAllowedError"?"Windows veya Chrome mikrofon erişimini engelledi.":error.name==="NotFoundError"?"Kullanılabilir mikrofon bulunamadı.":error.name==="NotReadableError"?"Mikrofon başka bir uygulama tarafından kullanılıyor veya açılamıyor.":String(error.message||error);
-  toast("Mikrofon açılamadı: "+reason);
+  voiceRecognition=null;button.classList.remove("recording");button.textContent="🎙 Mikrofon";button.disabled=false;
+  const detail=String(error.message||error);
+  const message=detail.startsWith("MIC_PERMISSION:")?"Nesil AI mikrofon iznini alamadı: "+detail.slice(16):
+   detail.startsWith("SPEECH_START:")?"Mikrofon izni alındı; fakat Chrome konuşma tanımayı başlatamadı: "+detail.slice(13):
+   detail==="GETUSERMEDIA_UNAVAILABLE"?"Chrome bu sayfada mikrofon erişim API'sini sunmuyor.":detail;
+  toast(message);
  }
 });
 function addMessage(role,content){const wrap=document.createElement("div");wrap.className="message "+role;const icon=document.createElement("div");icon.className="message-role";icon.textContent=role==="user"?"S":"N";const body=document.createElement("div");body.className="message-body";body.textContent=content;wrap.append(icon,body);if(role==="assistant")addSpeakButton(wrap,content);$("messages").append(wrap);$("messages").scrollTop=$("messages").scrollHeight}
